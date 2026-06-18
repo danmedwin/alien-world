@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Kepler-7X</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:monospace; }
+#c { display:block;width:100%;height:100%;touch-action:none; }
+#crosshair { position:absolute;top:50%;left:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none;display:none; }
+#crosshair::before,#crosshair::after { content:'';position:absolute;background:rgba(255,255,255,0.55);border-radius:2px; }
+#crosshair::before { width:2px;height:18px;left:8px;top:0; }
+#crosshair::after  { width:18px;height:2px;top:8px;left:0; }
+#overlay { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,0,15,0.85); }
+#startCard { background:rgba(30,10,55,0.95);border:1px solid rgba(160,100,255,0.4);border-radius:12px;padding:36px 48px;text-align:center;color:#c8aaff;max-width:380px; }
+#startCard h1 { font-size:24px;font-weight:500;margin-bottom:8px;color:#e0ccff;letter-spacing:0.1em; }
+#startCard p  { font-size:13px;color:rgba(180,150,220,0.75);margin-bottom:24px;line-height:1.7; }
+#startBtn { background:rgba(100,50,180,0.55);color:#d8bfff;border:1px solid rgba(160,100,255,0.55);padding:12px 32px;font-family:monospace;font-size:15px;cursor:pointer;border-radius:8px;letter-spacing:0.06em; }
+#startBtn:hover { background:rgba(130,70,210,0.7); }
+#hint { font-size:11px;color:rgba(160,130,200,0.5);margin-top:16px;line-height:1.9; }
+#ui  { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap; }
+#hud { position:absolute;bottom:12px;right:14px;color:rgba(180,150,220,0.5);font-size:11px;pointer-events:none;text-align:right;line-height:1.9; }
+#fps { position:absolute;top:12px;left:12px;color:rgba(180,150,220,0.4);font-size:10px;pointer-events:none; }
+#joystick-zone  { position:absolute;bottom:36px;left:50%;transform:translateX(-50%);width:120px;height:120px;display:none;touch-action:none;z-index:10; }
+#joystick-base  { width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(200,170,255,0.25);position:relative; }
+#joystick-thumb { width:46px;height:46px;border-radius:50%;background:rgba(180,140,255,0.25);border:1.5px solid rgba(200,170,255,0.45);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="crosshair"></div>
+<div id="ui">WASD to move | mouse to look | shift to sprint | ESC to release mouse</div>
+<div id="hud"><span id="time-label">06:00</span><br><span id="phase-label">DAWN</span></div>
+<div id="fps"></div>
+<div id="overlay">
+  <div id="startCard">
+    <h1>KEPLER-7X</h1>
+    <p>An alien world of crystal spires, bioluminescent flora, and endless purple highlands.</p>
+    <button id="startBtn">ENTER WORLD</button>
+    <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
+  </div>
+</div>
+<div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const MOBILE = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !MOBILE });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 500);
+
+function resize() {
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Noise ──────────────────────────────────────────────────────
+function uhash(x, y) {
+  let a = (Math.imul(x | 0, 1664525) + 1013904223) >>> 0;
+  let b = (Math.imul(y | 0, 1664525) + 1013904223) >>> 0;
+  a ^= b; a = Math.imul(a, 2246822519) >>> 0;
+  b ^= a; b = Math.imul(b, 2246822519) >>> 0;
+  return ((a ^ b) >>> 0) / 0xFFFFFFFF;
+}
+function fade(t) { return t * t * (3 - 2 * t); }
+function noise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = fade(x - ix), fy = fade(y - iy);
+  return (uhash(ix,iy)*(1-fx) + uhash(ix+1,iy)*fx)*(1-fy)
+       + (uhash(ix,iy+1)*(1-fx) + uhash(ix+1,iy+1)*fx)*fy;
+}
+function fbm(x, y, o) {
+  let v=0, a=1, f=1, s=0;
+  for (let i=0; i<o; i++) { v += noise(x*f, y*f)*a; s += a; a *= 0.5; f *= 2; }
+  return v / s;
+}
+function getHeight(wx, wz) {
+  return fbm(wx * 0.018, wz * 0.018, 5) * 20 - 3;
+}
+
+// ── Terrain colours ────────────────────────────────────────────
+function terrainRGB(h) {
+  const t = Math.max(0, Math.min(1, (h + 3) / 23));
+  if (t < 0.12) return [0.04, 0.04, 0.14];
+  if (t < 0.28) return [0.14, 0.06, 0.24];
+  if (t < 0.50) return [0.24, 0.10, 0.30];
+  if (t < 0.70) return [0.33, 0.15, 0.28];
+  if (t < 0.85) return [0.38, 0.22, 0.34];
+  return [0.46, 0.36, 0.52];
+}
+
+// ── Bioluminescence: track emissive materials globally ─────────
+// We store refs to MeshLambertMaterial instances that should glow at night.
+// No point lights at all — emissive only.
+const bioMaterials = [];   // { mat, color: THREE.Color }
+
+// ── Chunks ─────────────────────────────────────────────────────
+const CS = 32, CR = MOBILE ? 18 : 26, RD = MOBILE ? 2 : 3;
+const chunks = new Map();
+
+function buildChunk(cx, cz) {
+  const g = new THREE.Group();
+  const step = CS / CR, ox = cx * CS, oz = cz * CS;
+
+  // Terrain mesh
+  const pos = [], col = [], idx = [];
+  for (let iz = 0; iz <= CR; iz++) {
+    for (let ix = 0; ix <= CR; ix++) {
+      const wx = ox + ix*step, wz = oz + iz*step;
+      const h = getHeight(wx, wz);
+      pos.push(wx, h, wz);
+      const [r, gr, b] = terrainRGB(h);
+      col.push(r, gr, b);
+    }
+  }
+  for (let iz = 0; iz < CR; iz++) {
+    for (let ix = 0; ix < CR; ix++) {
+      const a = iz*(CR+1)+ix, b=a+1, c=(iz+1)*(CR+1)+ix, d=c+1;
+      idx.push(a,c,b, b,c,d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true })));
+
+  // Plants — NO PointLights at all. Bioluminescence = emissive material.
+  const PC = MOBILE ? 8 : 18;
+  for (let i = 0; i < PC; i++) {
+    const h1 = uhash(cx*1031+i*37,  cz*997 +i*13);
+    const h2 = uhash(cx*991 +i*41,  cz*881 +i*17);
+    const h3 = uhash(cx*877 +i*53,  cz*761 +i*23);
+    const h4 = uhash(cx*743 +i*61,  cz*631 +i*29);
+    const px = ox + h1*CS, pz = oz + h2*CS;
+    const py = getHeight(px, pz);
+    const type = Math.floor(h3 * 3);
+    const bio  = h4 > 0.52;
+
+    if (type === 0) {
+      // Crystal spires
+      const n = 1 + Math.floor(h4 * 3);
+      for (let k = 0; k < n; k++) {
+        const ka   = uhash(cx*600+i*71+k, cz*500+i*79+k);
+        const kb   = uhash(cx*580+i*83+k, cz*480+i*89+k);
+        const hue1 = uhash(cx*400+i*97+k, cz*300+i*101+k);
+        const hue2 = uhash(cx*350+i*107+k,cz*250+i*109+k);
+        const ht = 1.5 + ka*5, rad = 0.12 + kb*0.3;
+        const baseCol = bio
+          ? new THREE.Color(0.05+hue1*0.15, 0.3+hue2*0.3, 0.7+hue1*0.2)
+          : new THREE.Color(0.18+hue1*0.5, 0.04+hue2*0.15, 0.5+hue1*0.5);
+        const mat = new THREE.MeshLambertMaterial({
+          color: baseCol, transparent: true, opacity: 0.82
+        });
+        if (bio) {
+          mat.emissive = new THREE.Color(0.0, 0.0, 0.0);
+          mat.emissiveIntensity = 1;
+          bioMaterials.push({ mat, color: new THREE.Color(0.05, 0.4, 0.9) });
+        }
+        const m = new THREE.Mesh(new THREE.ConeGeometry(rad, ht, 6), mat);
+        m.position.set(px+(ka-0.5)*0.7, py+ht/2, pz+(kb-0.5)*0.7);
+        m.rotation.y = ka * Math.PI * 2;
+        g.add(m);
+      }
+
+    } else if (type === 1) {
+      // Bulbous stalks
+      const sht = 1.2 + h1*3;
+      const stalkMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.18, sht, 6),
+        new THREE.MeshLambertMaterial({ color: new THREE.Color(0.07, 0.18, 0.10) })
+      );
+      stalkMesh.position.set(px, py+sht/2, pz);
+      g.add(stalkMesh);
+
+      const br = 0.28 + h2*0.5;
+      const bulbBase = bio
+        ? new THREE.Color(0.03, 0.5+h3*0.3, 0.15+h3*0.4)
+        : new THREE.Color(0.10, 0.42, 0.18);
+      const bulbMat = new THREE.MeshLambertMaterial({
+        color: bulbBase, transparent: bio, opacity: bio ? 0.9 : 1
+      });
+      if (bio) {
+        bulbMat.emissive = new THREE.Color(0, 0, 0);
+        bulbMat.emissiveIntensity = 1;
+        bioMaterials.push({ mat: bulbMat, color: new THREE.Color(0.0, 0.7, 0.3) });
+      }
+      const bm = new THREE.Mesh(new THREE.SphereGeometry(br, 8, 8), bulbMat);
+      bm.position.set(px, py+sht+br*0.8, pz);
+      g.add(bm);
+
+    } else {
+      // Tendril fans
+      const fn = 3 + Math.floor(h1*4);
+      for (let k = 0; k < fn; k++) {
+        const ka  = uhash(cx*150+i*139+k, cz*600+i*149+k);
+        const ang = (k/fn)*Math.PI*2 + h2*Math.PI;
+        const len = 0.8 + ka*2.5;
+        const tc  = bio
+          ? new THREE.Color(0.5+ka*0.4, 0.02, 0.5+ka*0.45)
+          : new THREE.Color(0.35, 0.04, 0.25);
+        const tMat = new THREE.MeshLambertMaterial({ color: tc });
+        if (bio) {
+          tMat.emissive = new THREE.Color(0, 0, 0);
+          tMat.emissiveIntensity = 1;
+          bioMaterials.push({ mat: tMat, color: new THREE.Color(0.7, 0.0, 0.6) });
+        }
+        const tm = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.1, len, 4), tMat);
+        tm.position.set(px+Math.cos(ang)*len*0.4, py+len*0.5, pz+Math.sin(ang)*len*0.4);
+        tm.rotation.set(Math.sin(ang)*0.55, 0, Math.cos(ang)*0.55);
+        g.add(tm);
+      }
+    }
+  }
+
+  scene.add(g);
+  return g;
+}
+
+function chunkKey(cx, cz) { return cx + ',' + cz; }
+let lastCX = null, lastCZ = null;
+
+function updateChunks() {
+  const cx = Math.floor(camera.position.x / CS);
+  const cz = Math.floor(camera.position.z / CS);
+  if (cx === lastCX && cz === lastCZ) return;
+  lastCX = cx; lastCZ = cz;
+  const needed = new Set();
+  for (let dx = -RD; dx <= RD; dx++) {
+    for (let dz = -RD; dz <= RD; dz++) {
+      const key = chunkKey(cx+dx, cz+dz);
+      needed.add(key);
+      if (!chunks.has(key)) chunks.set(key, buildChunk(cx+dx, cz+dz));
+    }
+  }
+  for (const [key, grp] of chunks) {
+    if (!needed.has(key)) {
+      scene.remove(grp);
+      grp.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          // remove from bioMaterials tracking
+          const idx2 = bioMaterials.findIndex(b => b.mat === o.material);
+          if (idx2 !== -1) bioMaterials.splice(idx2, 1);
+          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+          else o.material.dispose();
+        }
+      });
+      chunks.delete(key);
+    }
+  }
+}
+
+// ── Sky ────────────────────────────────────────────────────────
+const skyMat = new THREE.MeshBasicMaterial({ color: 0x06000f, fog: false, side: THREE.BackSide });
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(460, 16, 8), skyMat));
+
+const sPos = [];
+for (let i = 0; i < 2000; i++) {
+  const th = Math.random()*Math.PI*2, ph = Math.acos(2*Math.random()-1);
+  sPos.push(Math.sin(ph)*Math.cos(th)*440, Math.sin(ph)*Math.sin(th)*440, Math.cos(ph)*440);
+}
+const starMat = new THREE.PointsMaterial({ color:0xeeddff, size:1.5, sizeAttenuation:false, fog:false, transparent:true, opacity:1 });
+scene.add(new THREE.Points(
+  new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(sPos, 3)),
+  starMat
+));
+
+const gasMesh = new THREE.Mesh(new THREE.SphereGeometry(26,24,18), new THREE.MeshBasicMaterial({ color:0x6644bb, fog:false }));
+gasMesh.position.set(180, 150, -300);
+scene.add(gasMesh);
+const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(40,5,4,32), new THREE.MeshBasicMaterial({ color:0x9977dd, transparent:true, opacity:0.4, fog:false }));
+ringMesh.position.copy(gasMesh.position); ringMesh.rotation.x = Math.PI/3;
+scene.add(ringMesh);
+
+// Two suns: A is orange, B is pale yellow-white
+// Sun A: base orbit. Sun B: 1.6x speed, offset 140deg ahead.
+// Night = both below horizon, roughly 1/3 of cycle.
+const sunMeshA = new THREE.Mesh(new THREE.SphereGeometry(10,14,10), new THREE.MeshBasicMaterial({ color:0xff7722, fog:false }));
+const sunMeshB = new THREE.Mesh(new THREE.SphereGeometry(7,12,9),   new THREE.MeshBasicMaterial({ color:0xfff0cc, fog:false }));
+scene.add(sunMeshA);
+scene.add(sunMeshB);
+
+// Two directional lights, well within uniform limits
+const sunLightA = new THREE.DirectionalLight(0xffcc88, 0.0); scene.add(sunLightA);
+const sunLightB = new THREE.DirectionalLight(0xfff0cc, 0.0); scene.add(sunLightB);
+const ambLight  = new THREE.AmbientLight(0x221133, 0.6);     scene.add(ambLight);
+
+const fogColor = new THREE.Color(0x06000f);
+scene.fog = new THREE.Fog(fogColor, 60, MOBILE ? 150 : 240);
+
+let timeOfDay = 0.25;
+const DAY_SPEED = 0.00030;
+const C_NIGHT = new THREE.Color(0x03000a);
+const C_DAWN  = new THREE.Color(0x1a0422);
+const C_DAY   = new THREE.Color(0x110030);
+
+function skyColor(dayF) {
+  if (dayF <= 0)   return C_NIGHT.clone();
+  if (dayF < 0.15) return C_NIGHT.clone().lerp(C_DAWN, dayF/0.15);
+  if (dayF < 0.35) return C_DAWN.clone().lerp(C_DAY, (dayF-0.15)/0.2);
+  return C_DAY.clone();
+}
+
+const timeEl  = document.getElementById('time-label');
+const phaseEl = document.getElementById('phase-label');
+
+function updateDayNight(t) {
+  const aA = t * Math.PI * 2;
+  const aB = t * Math.PI * 2 * 1.6 + (140 * Math.PI / 180);
+
+  const elevA = Math.sin(aA - Math.PI/2);
+  const elevB = Math.sin(aB - Math.PI/2);
+  const dayA  = Math.max(0, elevA);
+  const dayB  = Math.max(0, elevB);
+  const dayF  = Math.min(1, dayA + dayB);
+
+  sunMeshA.position.set(Math.cos(aA - Math.PI/2)*260, Math.sin(aA - Math.PI/2)*370, -180);
+  sunMeshB.position.set(Math.cos(aB - Math.PI/2)*300, Math.sin(aB - Math.PI/2)*340, -220);
+  sunMeshA.visible = elevA > -0.15;
+  sunMeshB.visible = elevB > -0.15;
+
+  sunLightA.position.copy(sunMeshA.position);
+  sunLightA.intensity = dayA * 1.1;
+  sunLightA.color.setRGB(1.0, 0.72 + dayA*0.28, 0.3 + dayA*0.5);
+  sunMeshA.material.color.setRGB(1, 0.45+dayA*0.45, 0.1+dayA*0.5);
+
+  sunLightB.position.copy(sunMeshB.position);
+  sunLightB.intensity = dayB * 0.75;
+  sunLightB.color.setRGB(1.0, 0.92 + dayB*0.08, 0.7 + dayB*0.3);
+  sunMeshB.material.color.setRGB(1, 0.92+dayB*0.08, 0.7+dayB*0.25);
+
+  ambLight.intensity = 0.18 + dayF * 0.38;
+
+  const sc = skyColor(dayF);
+  skyMat.color.copy(sc);
+  scene.fog.color.copy(sc).lerp(C_NIGHT, 0.5);
+  starMat.opacity = Math.max(0, 1 - dayF * 3);
+
+  const bioStr = Math.max(0, 1 - dayF * 2.5);
+  for (const { mat, color } of bioMaterials) {
+    mat.emissive.copy(color).multiplyScalar(bioStr);
+  }
+
+  const hr = Math.floor(t*24), mn = Math.floor((t*24-hr)*60);
+  timeEl.textContent  = String(hr).padStart(2,'0') + ':' + String(mn).padStart(2,'0');
+  phaseEl.textContent = dayF > 0.35 ? 'DAY' : dayF > 0.05 ? 'TWILIGHT' : 'NIGHT';
+}
+
+
+// ── Place camera on terrain ────────────────────────────────────
+camera.position.set(0, getHeight(0, 0) + 2.5, 0);
+
+// Build initial chunks before player enters
+updateChunks();
+
+// ── Input ──────────────────────────────────────────────────────
+const keys = {};
+let yaw = 0, pitch = 0, locked = false, started = false;
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup',   e => { keys[e.code] = false; });
+document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; });
+canvas.addEventListener('click', () => { if (started && !MOBILE) canvas.requestPointerLock(); });
+document.addEventListener('mousemove', e => {
+  if (!locked) return;
+  yaw   -= e.movementX * 0.002;
+  pitch -= e.movementY * 0.002;
+  pitch  = Math.max(-1.3, Math.min(1.3, pitch));
+});
+
+let lTouch = null, lTouchId = null;
+canvas.addEventListener('touchstart', e => {
+  for (const t of e.changedTouches)
+    if (!lTouchId && t.clientX > window.innerWidth * 0.36) {
+      lTouch = { x: t.clientX, y: t.clientY }; lTouchId = t.identifier;
+    }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== lTouchId || !lTouch) continue;
+    yaw   += (t.clientX - lTouch.x) * 0.004;
+    pitch += (t.clientY - lTouch.y) * 0.004;
+    pitch  = Math.max(-1.3, Math.min(1.3, pitch));
+    lTouch = { x: t.clientX, y: t.clientY };
+  }
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) if (t.identifier === lTouchId) { lTouch = null; lTouchId = null; }
+}, { passive: true });
+
+const jZone  = document.getElementById('joystick-zone');
+const jThumb = document.getElementById('joystick-thumb');
+let jDx = 0, jDz = 0, jTouchId = null, jOrigin = null;
+const JR = 37;
+jZone.addEventListener('touchstart', e => {
+  e.stopPropagation();
+  const t = e.changedTouches[0]; jTouchId = t.identifier;
+  const r = jZone.getBoundingClientRect();
+  jOrigin = { x: r.left+r.width/2, y: r.top+r.height/2 };
+}, { passive: true });
+jZone.addEventListener('touchmove', e => {
+  e.stopPropagation();
+  for (const t of e.changedTouches) {
+    if (t.identifier !== jTouchId) continue;
+    let dx = t.clientX-jOrigin.x, dy = t.clientY-jOrigin.y;
+    const d = Math.sqrt(dx*dx+dy*dy); if (d > JR) { dx=dx/d*JR; dy=dy/d*JR; }
+    jDx=dx/JR; jDz=dy/JR;
+    jThumb.style.transform = `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+  }
+}, { passive: true });
+const jEnd = e => {
+  for (const t of e.changedTouches) if (t.identifier === jTouchId) {
+    jDx=0; jDz=0; jTouchId=null;
+    jThumb.style.transform='translate(-50%,-50%)';
+  }
+};
+jZone.addEventListener('touchend',   jEnd, { passive: true });
+jZone.addEventListener('touchcancel',jEnd, { passive: true });
+
+// ── Movement ───────────────────────────────────────────────────
+const SPEED = 0.13, SPRINT = 2.5;
+const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+function doMove() {
+  if (!started) return;
+  const sp = (keys['ShiftLeft']||keys['ShiftRight']) ? SPRINT : 1;
+  let fwd=0, right=0;
+  if (keys['KeyW']||keys['ArrowUp'])    fwd++;
+  if (keys['KeyS']||keys['ArrowDown'])  fwd--;
+  if (keys['KeyA']||keys['ArrowLeft'])  right--;
+  if (keys['KeyD']||keys['ArrowRight']) right++;
+  fwd   -= jDz;   // joystick up (negative dy) = forward
+  right += jDx;   // joystick right (positive dx) = strafe right
+  const spd = SPEED * sp;
+  // Get the direction the camera is actually facing, flattened to XZ plane
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+  const rightVec = new THREE.Vector3();
+  rightVec.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+  camera.position.x += (forward.x * fwd + rightVec.x * right) * spd;
+  camera.position.z += (forward.z * fwd + rightVec.z * right) * spd;
+  const ty = getHeight(camera.position.x, camera.position.z) + 2.5;
+  camera.position.y += (ty - camera.position.y) * 0.2;
+}
+
+// ── Start ──────────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', () => {
+  started = true;
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('crosshair').style.display = 'block';
+  if (!MOBILE) { document.getElementById('ui').style.display='block'; canvas.requestPointerLock(); }
+  else { jZone.style.display='block'; }
+  lastCX = null; lastCZ = null;
+  updateChunks();
+});
+
+// ── Loop ───────────────────────────────────────────────────────
+const fpsEl = document.getElementById('fps');
+let fFrames = 0, fLast = performance.now();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  timeOfDay = (timeOfDay + DAY_SPEED) % 1;
+  updateDayNight(timeOfDay);
+  doMove();
+  euler.set(pitch, yaw, 0, 'YXZ');
+  camera.quaternion.setFromEuler(euler);
+  updateChunks();
+  renderer.render(scene, camera);
+  fFrames++;
+  if (now - fLast > 1000) {
+    fpsEl.textContent = Math.round(fFrames*1000/(now-fLast)) + ' fps';
+    fFrames=0; fLast=now;
+  }
+}
+animate(0);
+</script>
+</body>
+</html>

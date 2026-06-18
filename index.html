@@ -22,11 +22,198 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #ui { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap; }
 #hud { position:absolute;bottom:12px;right:14px;color:rgba(180,150,220,0.5);font-size:11px;pointer-events:none;text-align:right;line-height:1.9; }
 #fps { position:absolute;top:12px;left:12px;color:rgba(180,150,220,0.4);font-size:10px;pointer-events:none; }
-#joystick-zone { position:absolute;bottom:36px;left:50%;transform:translateX(-50%);width:120px;height:120px;display:none;touch-action:none;z-index:10; }
+#joystick-zone { position:absolute;bottom:36px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
 #joystick-base { width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(200,170,255,0.25);position:relative; }
 #joystick-thumb { width:46px;height:46px;border-radius:50%;background:rgba(180,140,255,0.25);border:1.5px solid rgba(200,170,255,0.45);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
 #underwater-overlay { position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(8,50,65,0.35),rgba(5,15,40,0.55));pointer-events:none;opacity:0;transition:opacity 0.5s;z-index:2; }
 #coords { position:absolute;bottom:12px;left:14px;color:rgba(180,150,220,0.5);font-size:11px;pointer-events:none;line-height:1.9; }
+
+/* ââ Menu Button âââââââââââââââââââââââââââââââââââââââââââ */
+#menu-btn {
+  display:none;
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:36px;
+  height:36px;
+  background:rgba(30,10,55,0.6);
+  border:1px solid rgba(160,100,255,0.35);
+  border-radius:8px;
+  cursor:pointer;
+  z-index:25;
+  align-items:center;
+  justify-content:center;
+  color:rgba(200,170,255,0.7);
+  font-size:18px;
+  line-height:1;
+  transition:background 0.2s, border-color 0.2s;
+}
+#menu-btn:hover { background:rgba(60,20,100,0.7);border-color:rgba(160,100,255,0.6); }
+
+/* ââ Settings Panel ââââââââââââââââââââââââââââââââââââââââ */
+#settings-overlay {
+  display:none;
+  position:absolute;
+  inset:0;
+  background:rgba(3,0,10,0.75);
+  z-index:30;
+  align-items:center;
+  justify-content:center;
+}
+#settings-panel {
+  background:rgba(20,6,45,0.96);
+  border:1px solid rgba(160,100,255,0.35);
+  border-radius:14px;
+  padding:28px 32px 24px;
+  color:#c8aaff;
+  font-family:monospace;
+  max-width:360px;
+  width:90%;
+  max-height:85vh;
+  overflow-y:auto;
+  position:relative;
+}
+@media (max-width:600px) {
+  #settings-panel { max-width:none;width:94%;margin:12px; }
+}
+#settings-panel h2 {
+  font-size:16px;
+  font-weight:500;
+  color:#e0ccff;
+  letter-spacing:0.1em;
+  margin-bottom:18px;
+  text-align:center;
+}
+#settings-close {
+  position:absolute;
+  top:10px;
+  right:14px;
+  background:none;
+  border:none;
+  color:rgba(200,170,255,0.6);
+  font-size:20px;
+  cursor:pointer;
+  font-family:monospace;
+  padding:4px 8px;
+}
+#settings-close:hover { color:#e0ccff; }
+.settings-section {
+  margin-bottom:16px;
+  padding-bottom:14px;
+  border-bottom:1px solid rgba(160,100,255,0.15);
+}
+.settings-section:last-child { border-bottom:none;margin-bottom:0;padding-bottom:0; }
+.settings-section-title {
+  font-size:11px;
+  color:rgba(160,130,200,0.55);
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  margin-bottom:10px;
+}
+.settings-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:10px;
+}
+.settings-row:last-child { margin-bottom:0; }
+.settings-label {
+  font-size:12px;
+  color:rgba(200,170,255,0.75);
+}
+/* Toggle switch */
+.toggle {
+  position:relative;
+  width:40px;
+  height:22px;
+  flex-shrink:0;
+}
+.toggle input { opacity:0;width:0;height:0; }
+.toggle-track {
+  position:absolute;
+  inset:0;
+  background:rgba(60,30,100,0.5);
+  border:1px solid rgba(160,100,255,0.3);
+  border-radius:12px;
+  cursor:pointer;
+  transition:background 0.2s, border-color 0.2s;
+}
+.toggle input:checked + .toggle-track {
+  background:rgba(120,60,200,0.6);
+  border-color:rgba(180,120,255,0.5);
+}
+.toggle-knob {
+  position:absolute;
+  top:3px;
+  left:3px;
+  width:14px;
+  height:14px;
+  background:rgba(200,170,255,0.7);
+  border-radius:50%;
+  transition:transform 0.2s;
+  pointer-events:none;
+}
+.toggle input:checked ~ .toggle-knob {
+  transform:translateX(18px);
+}
+/* Joystick side toggle buttons */
+.side-toggle {
+  display:flex;
+  gap:0;
+}
+.side-toggle button {
+  background:rgba(60,30,100,0.4);
+  border:1px solid rgba(160,100,255,0.25);
+  color:rgba(200,170,255,0.6);
+  font-family:monospace;
+  font-size:11px;
+  padding:5px 14px;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.side-toggle button:first-child { border-radius:6px 0 0 6px; }
+.side-toggle button:last-child { border-radius:0 6px 6px 0;border-left:none; }
+.side-toggle button.active {
+  background:rgba(120,60,200,0.55);
+  border-color:rgba(180,120,255,0.5);
+  color:#e0ccff;
+}
+/* Slider */
+.settings-slider {
+  -webkit-appearance:none;
+  appearance:none;
+  width:120px;
+  height:4px;
+  background:rgba(60,30,100,0.6);
+  border-radius:2px;
+  outline:none;
+  flex-shrink:0;
+}
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  appearance:none;
+  width:14px;
+  height:14px;
+  background:rgba(180,140,255,0.7);
+  border:1px solid rgba(200,170,255,0.5);
+  border-radius:50%;
+  cursor:pointer;
+}
+.settings-slider::-moz-range-thumb {
+  width:14px;
+  height:14px;
+  background:rgba(180,140,255,0.7);
+  border:1px solid rgba(200,170,255,0.5);
+  border-radius:50%;
+  cursor:pointer;
+}
+.slider-value {
+  font-size:11px;
+  color:rgba(160,130,200,0.55);
+  width:28px;
+  text-align:right;
+  flex-shrink:0;
+}
 </style>
 </head>
 <body>
@@ -47,95 +234,72 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <div id="underwater-overlay"></div>
 <div id="coords"></div>
 
+<!-- Menu Button (gear icon, hidden until game starts) -->
+<button id="menu-btn" aria-label="Settings">&#9881;</button>
+
+<!-- Settings Overlay -->
+<div id="settings-overlay">
+<div id="settings-panel">
+<button id="settings-close" aria-label="Close settings">&times;</button>
+<h2>SETTINGS</h2>
+
+<!-- Joystick Position (mobile only) -->
+<div class="settings-section" id="joystick-section" style="display:none">
+<div class="settings-section-title">Controls</div>
+<div class="settings-row">
+<span class="settings-label">Joystick Position</span>
+<div class="side-toggle">
+<button id="joy-left" class="active">Left</button>
+<button id="joy-right">Right</button>
+</div>
+</div>
+</div>
+
+<!-- Look Inversion -->
+<div class="settings-section">
+<div class="settings-section-title">Look</div>
+<div class="settings-row">
+<span class="settings-label">Invert Horizontal</span>
+<label class="toggle">
+<input type="checkbox" id="invert-x">
+<span class="toggle-track"></span>
+<span class="toggle-knob"></span>
+</label>
+</div>
+<div class="settings-row">
+<span class="settings-label">Invert Vertical</span>
+<label class="toggle">
+<input type="checkbox" id="invert-y">
+<span class="toggle-track"></span>
+<span class="toggle-knob"></span>
+</label>
+</div>
+</div>
+
+<!-- Sound (placeholder) -->
+<div class="settings-section">
+<div class="settings-section-title">Sound</div>
+<div class="settings-row">
+<span class="settings-label">Ambient</span>
+<input type="range" class="settings-slider" id="snd-ambient" min="0" max="100" value="70">
+<span class="slider-value" id="snd-ambient-val">70</span>
+</div>
+<div class="settings-row">
+<span class="settings-label">Music</span>
+<input type="range" class="settings-slider" id="snd-music" min="0" max="100" value="50">
+<span class="slider-value" id="snd-music-val">50</span>
+</div>
+<div class="settings-row">
+<span class="settings-label">Effects</span>
+<input type="range" class="settings-slider" id="snd-fx" min="0" max="100" value="80">
+<span class="slider-value" id="snd-fx-val">80</span>
+</div>
+</div>
+</div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-const MOBILE = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: !MOBILE });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2));
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 500);
-
-function resize() {
-renderer.setSize(window.innerWidth, window.innerHeight, false);
-camera.aspect = window.innerWidth / window.innerHeight;
-camera.updateProjectionMatrix();
-}
-window.addEventListener('resize', resize);
-resize();
-
-// ââ Noise ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-function uhash(x, y) {
-let a = (Math.imul(x | 0, 1664525) + 1013904223) >>> 0;
-let b = (Math.imul(y | 0, 1664525) + 1013904223) >>> 0;
-a ^= b; a = Math.imul(a, 2246822519) >>> 0;
-b ^= a; b = Math.imul(b, 2246822519) >>> 0;
-return ((a ^ b) >>> 0) / 0xFFFFFFFF;
-}
-function fade(t) { return t * t * (3 - 2 * t); }
-function noise(x, y) {
-const ix = Math.floor(x), iy = Math.floor(y);
-const fx = fade(x - ix), fy = fade(y - iy);
-return (uhash(ix,iy)*(1-fx) + uhash(ix+1,iy)*fx)*(1-fy)
-+ (uhash(ix,iy+1)*(1-fx) + uhash(ix+1,iy+1)*fx)*fy;
-}
-function fbm(x, y, o) {
-let v=0, a=1, f=1, s=0;
-for (let i=0; i<o; i++) { v += noise(x*f, y*f)*a; s += a; a *= 0.5; f *= 2; }
-return v / s;
-}
-function getHeight(wx, wz) {
-return fbm(wx * 0.018, wz * 0.018, 5) * 20 - 3;
-}
-
-// ââ Terrain colours ââââââââââââââââââââââââââââââââââââââââââââ
-function terrainRGB(h) {
-const t = Math.max(0, Math.min(1, (h + 3) / 23));
-if (t < 0.12) return [0.04, 0.04, 0.14];
-if (t < 0.28) return [0.14, 0.06, 0.24];
-if (t < 0.50) return [0.24, 0.10, 0.30];
-if (t < 0.70) return [0.33, 0.15, 0.28];
-if (t < 0.85) return [0.38, 0.22, 0.34];
-return [0.46, 0.36, 0.52];
-}
-
-// ââ Bioluminescence ââââââââââââââââââââââââââââââââââââââââââââ
-const bioMaterials = [];
-
-// ââ Water level ââââââââââââââââââââââââââââââââââââââââââââââââ
-const WATER_LEVEL = 3.0;
-
-// ââ Chunks âââââââââââââââââââââââââââââââââââââââââââââââââââââ
-const CS = 32, CR = MOBILE ? 18 : 26, RD = MOBILE ? 2 : 3;
-const chunks = new Map();
-
-function buildChunk(cx, cz) {
-const g = new THREE.Group();
-const step = CS / CR, ox = cx * CS, oz = cz * CS;
-
-// Terrain mesh
-const pos = [], col = [], idx = [];
-for (let iz = 0; iz <= CR; iz++) {
-for (let ix = 0; ix <= CR; ix++) {
-const wx = ox + ix*step, wz = oz + iz*step;
-const h = getHeight(wx, wz);
-pos.push(wx, h, wz);
-const [r, gr, b] = terrainRGB(h);
-col.push(r, gr, b);
-}
-}
-for (let iz = 0; iz < CR; iz++) {
-for (let ix = 0; ix < CR; ix++) {
-const a = iz*(CR+1)+ix, b=a+1, c=(iz+1)*(CR+1)+ix, d=c+1;
-idx.push(a,c,b, b,c,d);
-}
-}
-const geo = new THREE.BufferGeometry();
-geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-geo.setIndex(idx);
-geo.computeVertexNormals();
+<script>xNormals();
 g.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true })));
 
 // Plants
@@ -365,138 +529,7 @@ const elevB = Math.sin(aB - Math.PI/2);
 const dayA = Math.max(0, elevA);
 const dayB = Math.max(0, elevB);
 const dayF = Math.min(1, dayA + dayB);
-currentDayF = dayF;
-
-sunMeshA.position.set(Math.cos(aA - Math.PI/2)*260, Math.sin(aA - Math.PI/2)*370, -180);
-sunMeshB.position.set(Math.cos(aB - Math.PI/2)*300, Math.sin(aB - Math.PI/2)*340, -220);
-sunMeshA.visible = elevA > -0.15;
-sunMeshB.visible = elevB > -0.15;
-
-sunLightA.position.copy(sunMeshA.position);
-sunLightA.intensity = dayA * 1.1;
-sunLightA.color.setRGB(1.0, 0.72 + dayA*0.28, 0.3 + dayA*0.5);
-sunMeshA.material.color.setRGB(1, 0.45+dayA*0.45, 0.1+dayA*0.5);
-
-sunLightB.position.copy(sunMeshB.position);
-sunLightB.intensity = dayB * 0.75;
-sunLightB.color.setRGB(1.0, 0.92 + dayB*0.08, 0.7 + dayB*0.3);
-sunMeshB.material.color.setRGB(1, 0.92+dayB*0.08, 0.7+dayB*0.25);
-
-ambLight.intensity = 0.18 + dayF * 0.38;
-
-const sc = skyColor(dayF);
-skyMat.color.copy(sc);
-scene.fog.color.copy(sc).lerp(C_NIGHT, 0.5);
-scene.fog.far = BASE_FOG_FAR;
-scene.fog.near = 60;
-starMat.opacity = Math.max(0, 1 - dayF * 3);
-
-const bioStr = Math.max(0, 1 - dayF * 2.5);
-for (const { mat, color } of bioMaterials) {
-mat.emissive.copy(color).multiplyScalar(bioStr);
-}
-
-const hr = Math.floor(t*24), mn = Math.floor((t*24-hr)*60);
-timeEl.textContent = String(hr).padStart(2,'0') + ':' + String(mn).padStart(2,'0');
-phaseEl.textContent = dayF > 0.35 ? 'DAY' : dayF > 0.05 ? 'TWILIGHT' : 'NIGHT';
-}
-
-// ââ Water System âââââââââââââââââââââââââââââââââââââââââââââââ
-const waterSize = MOBILE ? 300 : 500;
-const waterSegs = MOBILE ? 50 : 100;
-const waterGeo = new THREE.PlaneGeometry(waterSize, waterSize, waterSegs, waterSegs);
-waterGeo.rotateX(-Math.PI / 2);
-
-const waterMat = new THREE.ShaderMaterial({
-uniforms: {
-uTime: { value: 0 },
-uNightFactor: { value: 0 },
-uStormIntensity: { value: 0 },
-uFogColor: { value: new THREE.Color(0x06000f) },
-uFogNear: { value: 60 },
-uFogFar: { value: BASE_FOG_FAR }
-},
-vertexShader: `
-uniform float uTime;
-varying float vWaveHeight;
-varying float vFogDepth;
-varying vec3 vWorldPos;
-void main() {
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  float w = sin(wp.x * 0.15 + uTime * 0.6) * 0.4;
-  w += sin(wp.z * 0.2 + uTime * 0.9) * 0.3;
-  w += cos((wp.x + wp.z) * 0.1 + uTime * 0.4) * 0.25;
-  w += sin(wp.x * 0.4 + wp.z * 0.3 + uTime * 1.5) * 0.1;
-  vec3 pos = position;
-  pos.y += w;
-  vWaveHeight = w;
-  vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
-  vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-  vFogDepth = -mvPosition.z;
-  gl_Position = projectionMatrix * mvPosition;
-}
-`,
-fragmentShader: `
-uniform float uTime;
-uniform float uNightFactor;
-uniform float uStormIntensity;
-uniform vec3 uFogColor;
-uniform float uFogNear;
-uniform float uFogFar;
-varying float vWaveHeight;
-varying float vFogDepth;
-varying vec3 vWorldPos;
-void main() {
-  vec3 deepCol = vec3(0.06, 0.02, 0.18);
-  vec3 shallowCol = vec3(0.02, 0.22, 0.28);
-  vec3 col = mix(deepCol, shallowCol, clamp(vWaveHeight * 1.5 + 0.5, 0.0, 1.0));
-  float shimmer = sin(vWorldPos.x * 0.3 + uTime * 0.7) * sin(vWorldPos.z * 0.25 + uTime * 0.5);
-  shimmer = shimmer * shimmer;
-  col += vec3(0.1, 0.4, 0.5) * shimmer * (0.3 + uNightFactor * 0.7);
-  col += vec3(0.08, 0.15, 0.18) * max(0.0, vWaveHeight * 0.8);
-  float ripple = sin(vWorldPos.x * 2.5 + uTime * 4.0) * sin(vWorldPos.z * 2.5 + uTime * 3.5);
-  col += vec3(0.05, 0.12, 0.15) * ripple * ripple * uStormIntensity;
-  float fogFactor = smoothstep(uFogNear, uFogFar, vFogDepth);
-  col = mix(col, uFogColor, fogFactor);
-  float alpha = 0.55 + shimmer * 0.15 - fogFactor * 0.3;
-  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85));
-}
-`,
-transparent: true,
-side: THREE.DoubleSide,
-depthWrite: false
-});
-
-const waterMesh = new THREE.Mesh(waterGeo, waterMat);
-waterMesh.position.y = WATER_LEVEL;
-waterMesh.renderOrder = 999;
-scene.add(waterMesh);
-
-// ââ Underwater Particles âââââââââââââââââââââââââââââââââââââââ
-const UW_COUNT = MOBILE ? 80 : 200;
-const uwGeo = new THREE.BufferGeometry();
-const uwPos = new Float32Array(UW_COUNT * 3);
-const uwDrift = new Float32Array(UW_COUNT * 3);
-for (let i = 0; i < UW_COUNT; i++) {
-uwPos[i*3] = (Math.random()-0.5)*30;
-uwPos[i*3+1] = (Math.random()-0.5)*15;
-uwPos[i*3+2] = (Math.random()-0.5)*30;
-uwDrift[i*3] = (Math.random()-0.5)*0.3;
-uwDrift[i*3+1] = 0.1 + Math.random()*0.2;
-uwDrift[i*3+2] = (Math.random()-0.5)*0.3;
-}
-uwGeo.setAttribute('position', new THREE.Float32BufferAttribute(uwPos, 3));
-const uwMat = new THREE.PointsMaterial({
-color: 0x44ddcc, size: MOBILE ? 0.12 : 0.18,
-transparent: true, opacity: 0.55, sizeAttenuation: true
-});
-const uwParticles = new THREE.Points(uwGeo, uwMat);
-uwParticles.visible = false;
-scene.add(uwParticles);
-
-// ââ Storm System âââââââââââââââââââââââââââââââââââââââââââââââ
-const storms = [];
-const MAX_STORMS = 3;
+currentDayF = dayF;const MAX_STORMS = 3;
 let stormTimer = 10 + Math.random() * 20;
 const stormDarkColor = new THREE.Color(0x020008);
 
@@ -584,32 +617,42 @@ rainGeo.attributes.position.needsUpdate = true;
 camera.position.set(0, getHeight(0, 0) + 2.5, 0);
 updateChunks();
 
+// ââ Settings State âââââââââââââââââââââââââââââââââââââââââââââ
+let invertX = false;
+let invertY = false;
+let joystickSide = 'left'; // 'left' or 'right'
+let menuOpen = false;
+
 // ââ Input ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const keys = {};
 let yaw = 0, pitch = 0, locked = false, started = false;
 document.addEventListener('keydown', e => { keys[e.code] = true; });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; });
-canvas.addEventListener('click', () => { if (started && !MOBILE) canvas.requestPointerLock(); });
+canvas.addEventListener('click', () => { if (started && !MOBILE && !menuOpen) canvas.requestPointerLock(); });
 document.addEventListener('mousemove', e => {
 if (!locked) return;
-yaw -= e.movementX * 0.002;
-pitch -= e.movementY * 0.002;
+const xMult = invertX ? 1 : -1;
+const yMult = invertY ? 1 : -1;
+yaw += e.movementX * 0.002 * xMult;
+pitch += e.movementY * 0.002 * yMult;
 pitch = Math.max(-1.3, Math.min(1.3, pitch));
 });
 
 let lTouch = null, lTouchId = null;
 canvas.addEventListener('touchstart', e => {
 for (const t of e.changedTouches)
-if (!lTouchId && t.clientX > window.innerWidth * 0.36) {
+if (!lTouchId) {
 lTouch = { x: t.clientX, y: t.clientY }; lTouchId = t.identifier;
 }
 }, { passive: true });
 canvas.addEventListener('touchmove', e => {
 for (const t of e.changedTouches) {
 if (t.identifier !== lTouchId || !lTouch) continue;
-yaw += (t.clientX - lTouch.x) * 0.004;
-pitch += (t.clientY - lTouch.y) * 0.004;
+const xMult = invertX ? -1 : 1;
+const yMult = invertY ? -1 : 1;
+yaw += (t.clientX - lTouch.x) * 0.004 * xMult;
+pitch += (t.clientY - lTouch.y) * 0.004 * yMult;
 pitch = Math.max(-1.3, Math.min(1.3, pitch));
 lTouch = { x: t.clientX, y: t.clientY };
 }
@@ -682,11 +725,109 @@ const lerpFactor = isUnderwater ? 0.1 : 0.2;
 camera.position.y += (ty - camera.position.y) * lerpFactor;
 }
 
+// ââ Menu / Settings ââââââââââââââââââââââââââââââââââââââââââââ
+const menuBtn = document.getElementById('menu-btn');
+const settingsOverlay = document.getElementById('settings-overlay');
+const settingsClose = document.getElementById('settings-close');
+const invertXCheck = document.getElementById('invert-x');
+const invertYCheck = document.getElementById('invert-y');
+const joyLeftBtn = document.getElementById('joy-left');
+const joyRightBtn = document.getElementById('joy-right');
+const joystickSection = document.getElementById('joystick-section');
+
+// Show joystick section only on mobile
+if (MOBILE) joystickSection.style.display = '';
+
+function openMenu() {
+menuOpen = true;
+settingsOverlay.style.display = 'flex';
+// Release pointer lock on desktop
+if (!MOBILE && document.pointerLockElement) {
+document.exitPointerLock();
+}
+}
+
+function closeMenu() {
+menuOpen = false;
+settingsOverlay.style.display = 'none';
+// Re-acquire pointer lock on desktop
+if (!MOBILE && started) {
+canvas.requestPointerLock();
+}
+}
+
+menuBtn.addEventListener('click', e => {
+e.stopPropagation();
+if (menuOpen) closeMenu(); else openMenu();
+});
+menuBtn.addEventListener('touchend', e => {
+e.stopPropagation();
+e.preventDefault();
+if (menuOpen) closeMenu(); else openMenu();
+}, { passive: false });
+
+settingsClose.addEventListener('click', e => {
+e.stopPropagation();
+closeMenu();
+});
+
+// Close menu when clicking overlay background (not the panel)
+settingsOverlay.addEventListener('click', e => {
+if (e.target === settingsOverlay) closeMenu();
+});
+// Prevent touches on settings panel from reaching the canvas
+settingsOverlay.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: true });
+settingsOverlay.addEventListener('touchmove', e => { e.stopPropagation(); }, { passive: true });
+settingsOverlay.addEventListener('touchend', e => { e.stopPropagation(); }, { passive: true });
+
+// Invert toggles
+invertXCheck.addEventListener('change', () => { invertX = invertXCheck.checked; });
+invertYCheck.addEventListener('change', () => { invertY = invertYCheck.checked; });
+
+// Joystick position toggle
+function setJoystickSide(side) {
+joystickSide = side;
+if (side === 'left') {
+jZone.style.left = '24px';
+jZone.style.right = 'auto';
+joyLeftBtn.classList.add('active');
+joyRightBtn.classList.remove('active');
+} else {
+jZone.style.right = '24px';
+jZone.style.left = 'auto';
+joyRightBtn.classList.add('active');
+joyLeftBtn.classList.remove('active');
+}
+}
+joyLeftBtn.addEventListener('click', () => setJoystickSide('left'));
+joyRightBtn.addEventListener('click', () => setJoystickSide('right'));
+
+// Sound sliders (placeholder -- just update display values)
+document.getElementById('snd-ambient').addEventListener('input', function() {
+document.getElementById('snd-ambient-val').textContent = this.value;
+});
+document.getElementById('snd-music').addEventListener('input', function() {
+document.getElementById('snd-music-val').textContent = this.value;
+});
+document.getElementById('snd-fx').addEventListener('input', function() {
+document.getElementById('snd-fx-val').textContent = this.value;
+});
+
+// Close menu on Escape key
+document.addEventListener('keydown', e => {
+if (e.code === 'Escape' && menuOpen) {
+closeMenu();
+e.preventDefault();
+e.stopPropagation();
+}
+});
+
 // ââ Start ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 document.getElementById('startBtn').addEventListener('click', () => {
 started = true;
 document.getElementById('overlay').style.display = 'none';
 document.getElementById('crosshair').style.display = 'block';
+menuBtn.style.display = 'flex';
 if (!MOBILE) { document.getElementById('ui').style.display='block'; canvas.requestPointerLock(); }
 else { jZone.style.display='block'; }
 lastCX = null; lastCZ = null;

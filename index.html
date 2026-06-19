@@ -2047,23 +2047,31 @@ function removeSchool(s) {
 function updateSchools(dt, now) {
   const camX = camera.position.x, camZ = camera.position.z;
   const t = now * 0.001;
-  const DESPAWN_R2 = SCHOOL_SPAWN_R * SCHOOL_SPAWN_R * 4; // despawn at 2x spawn radius
+  const LEASH_R = SCHOOL_SPAWN_R * 1.2; // start pulling back at 72 units
+  const HARD_DESPAWN_R2 = (SCHOOL_SPAWN_R * 4) * (SCHOOL_SPAWN_R * 4); // only despawn at 240 units
 
-  // Despawn schools that are very far away
+  // Leash schools back toward player, hard-despawn only if extremely far
   for (let s = schools.length - 1; s >= 0; s--) {
     const sch = schools[s];
     const dx = sch.group.position.x - camX, dz = sch.group.position.z - camZ;
-    if (dx*dx + dz*dz > DESPAWN_R2) {
+    const dist2 = dx*dx + dz*dz;
+    if (dist2 > HARD_DESPAWN_R2) {
       removeSchool(s);
+    } else if (dist2 > LEASH_R * LEASH_R) {
+      // Gently steer back toward player
+      const dist = Math.sqrt(dist2);
+      const pull = (dist - LEASH_R) * 0.02; // stronger pull the further they are
+      sch.vel.x -= (dx / dist) * pull;
+      sch.vel.z -= (dz / dist) * pull;
     }
   }
 
-  // Spawn new schools gradually (one per second max)
+  // Spawn new schools gradually (one per 3 seconds max)
   schoolSpawnCooldown -= dt;
   if (schools.length < SCHOOL_COUNT && schoolSpawnCooldown <= 0) {
     const newSchool = createSchool(camX, camZ);
     if (newSchool) schools.push(newSchool);
-    schoolSpawnCooldown = 2; // wait 2 seconds before trying to spawn another
+    schoolSpawnCooldown = 3;
   }
 
   // Day/night behavior for fish:
@@ -2074,15 +2082,20 @@ function updateSchools(dt, now) {
 
   // Update each school
   for (const sch of schools) {
-    // School direction change
+    // School direction change — gradual steering instead of sudden jumps
     sch.turnTimer -= dt;
     if (sch.turnTimer <= 0) {
-      sch.vel.x += (Math.random()-0.5) * 3;
-      sch.vel.z += (Math.random()-0.5) * 3;
-      const len = Math.sqrt(sch.vel.x*sch.vel.x + sch.vel.z*sch.vel.z);
-      if (len > 2.5) { sch.vel.x = sch.vel.x/len*2.5; sch.vel.z = sch.vel.z/len*2.5; }
-      sch.turnTimer = 3 + Math.random() * 5;
+      sch.targetVelX = (Math.random()-0.5) * 3;
+      sch.targetVelZ = (Math.random()-0.5) * 3;
+      sch.turnTimer = 4 + Math.random() * 6;
     }
+    // Smoothly steer toward target velocity
+    if (sch.targetVelX !== undefined) {
+      sch.vel.x += (sch.targetVelX - sch.vel.x) * 0.02;
+      sch.vel.z += (sch.targetVelZ - sch.vel.z) * 0.02;
+    }
+    const len = Math.sqrt(sch.vel.x*sch.vel.x + sch.vel.z*sch.vel.z);
+    if (len > 2.0) { sch.vel.x = sch.vel.x/len*2.0; sch.vel.z = sch.vel.z/len*2.0; }
 
     // Move school center (speed varies by time of day)
     sch.group.position.x += sch.vel.x * fishSpeedMult * dt;

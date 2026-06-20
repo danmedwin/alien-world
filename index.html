@@ -20,17 +20,43 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #startBtn:hover { background:rgba(130,70,210,0.7); }
 #hint { font-size:11px;color:rgba(160,130,200,0.5);margin-top:16px;line-height:1.9; }
 #ui { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap; }
-#joystick-zone { position:absolute;bottom:36px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
+#joystick-zone { position:absolute;bottom:90px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
 #joystick-base { width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(200,170,255,0.25);position:relative; }
 #joystick-thumb { width:46px;height:46px;border-radius:50%;background:rgba(180,140,255,0.25);border:1.5px solid rgba(200,170,255,0.45);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
 #underwater-overlay { position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(8,50,65,0.35),rgba(5,15,40,0.55));pointer-events:none;opacity:0;transition:opacity 0.5s;z-index:2; }
 
-/* ── HUD Corner Wrappers ───────────────────────────────────── */
-.hud-corner { position:absolute; display:flex; flex-direction:column; gap:4px; pointer-events:none; z-index:5; }
-#hud-tl { top:12px; left:12px; align-items:flex-start; }
-#hud-tr { top:12px; right:12px; align-items:flex-end; }
-#hud-bl { bottom:12px; left:12px; align-items:flex-start; }
-#hud-br { bottom:12px; right:12px; align-items:flex-end; }
+/* ── HUD Layout ───────────────────────────────────────────── */
+#hud-layer {
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  pointer-events:none;
+  z-index:5;
+  padding:12px;
+  padding-bottom:90px; /* space for inventory + joystick */
+}
+#hud-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+}
+#hud-bottom {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+}
+.hud-corner {
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  pointer-events:none;
+}
+#hud-tl { align-items:flex-start; }
+#hud-tr { align-items:flex-end; }
+#hud-bl { align-items:flex-start; }
+#hud-br { align-items:flex-end; }
 
 /* ── HUD element styles (no fixed positioning) ─────────────── */
 #hud { color:rgba(180,150,220,0.5);font-size:11px;pointer-events:none;text-align:right;line-height:1.9; }
@@ -321,6 +347,88 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   padding: 4px 8px;
   cursor: pointer;
 }
+
+/* ── Hotbar ───────────────────────────────────────────────── */
+#hotbar {
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  display:none; /* hidden until game starts */
+  gap:4px; z-index:8; pointer-events:auto;
+}
+.hotbar-slot {
+  width:48px; height:48px; position:relative;
+  background:rgba(20,6,45,0.7);
+  border:1.5px solid rgba(160,100,255,0.3);
+  border-radius:8px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition: border-color 0.2s, background 0.2s;
+}
+.hotbar-slot.active {
+  border-color:rgba(200,170,255,0.8);
+  background:rgba(60,20,100,0.6);
+}
+.hotbar-slot.empty { opacity:0.4; }
+.hotbar-key {
+  position:absolute; top:2px; left:4px;
+  font-size:9px; color:rgba(180,150,220,0.4);
+  font-family:monospace; pointer-events:none;
+}
+.hotbar-icon {
+  font-size:20px; pointer-events:none;
+}
+.hotbar-label {
+  position:absolute; bottom:-14px; left:50%; transform:translateX(-50%);
+  font-size:8px; color:rgba(180,150,220,0.5);
+  font-family:monospace; white-space:nowrap; pointer-events:none;
+}
+#pickup-notification {
+  position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+  color:#e0ccff; font-family:monospace; font-size:13px;
+  background:rgba(20,6,45,0.8); border:1px solid rgba(160,100,255,0.4);
+  border-radius:8px; padding:8px 16px;
+  opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:9;
+  white-space:nowrap;
+}
+@media (hover:none) and (pointer:coarse) {
+  .hotbar-key { display:none; }
+}
+#puzzle-ui {
+  display:none; flex-direction:row; gap:10px; pointer-events:auto;
+  align-self:center;
+}
+.puzzle-ring-btn {
+  width:48px; height:48px; border-radius:50%;
+  background:rgba(20,6,45,0.75);
+  border:1.5px solid rgba(68,170,255,0.4);
+  cursor:pointer; position:relative;
+  transition:all 0.2s;
+}
+.puzzle-ring-btn:active { background:rgba(60,20,100,0.8); border-color:rgba(68,255,136,0.7); }
+/* Concentric circle icons via box-shadows and pseudo-elements */
+.puzzle-ring-btn .ring-icon {
+  position:absolute; inset:0; border-radius:50%;
+}
+/* Outer ring button: outer ring highlighted */
+#ring-outer .ring-icon {
+  border:3px solid rgba(68,170,255,0.9);
+  box-shadow: inset 0 0 0 6px transparent, inset 0 0 0 9px rgba(68,170,255,0.3), inset 0 0 0 14px transparent, inset 0 0 0 16px rgba(68,170,255,0.3);
+}
+/* Middle ring button: middle ring highlighted */
+#ring-middle .ring-icon {
+  border:2px solid rgba(68,170,255,0.3);
+  box-shadow: inset 0 0 0 6px transparent, inset 0 0 0 9px rgba(68,170,255,0.9), inset 0 0 0 14px transparent, inset 0 0 0 16px rgba(68,170,255,0.3);
+}
+/* Inner ring button: inner ring highlighted */
+#ring-inner .ring-icon {
+  border:2px solid rgba(68,170,255,0.3);
+  box-shadow: inset 0 0 0 6px transparent, inset 0 0 0 9px rgba(68,170,255,0.3), inset 0 0 0 14px transparent, inset 0 0 0 16px rgba(68,170,255,0.9);
+}
+#scanner-overlay {
+  display:none; position:absolute; top:50px; right:12px;
+  background:rgba(20,6,45,0.85); border:1px solid rgba(255,170,50,0.5);
+  border-radius:8px; padding:8px 12px; z-index:7;
+  font-family:monospace; font-size:10px; color:rgba(255,170,50,0.9);
+  pointer-events:none; min-width:100px; white-space:pre;
+}
 </style>
 </head>
 <body>
@@ -328,11 +436,18 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <div id="crosshair"></div>
 <div id="ui">WASD to move | mouse to look | shift to sprint | ESC to release mouse</div>
 
-<!-- HUD Corner Wrappers -->
-<div id="hud-tl" class="hud-corner"></div>
-<div id="hud-tr" class="hud-corner"></div>
-<div id="hud-bl" class="hud-corner"></div>
-<div id="hud-br" class="hud-corner"></div>
+<!-- HUD Layout -->
+<div id="hud-layer">
+  <div id="hud-top">
+    <div id="hud-tl" class="hud-corner"></div>
+    <div id="hud-tr" class="hud-corner"></div>
+  </div>
+  <div id="hud-bottom">
+    <div id="hud-bl" class="hud-corner"></div>
+    <div id="puzzle-ui"></div>
+    <div id="hud-br" class="hud-corner"></div>
+  </div>
+</div>
 
 <!-- HUD Elements (will be moved into corner wrappers by JS) -->
 <div id="hud"><span id="time-label">06:00</span> <span id="phase-label">DAWN</span></div>
@@ -365,6 +480,21 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
 <div id="underwater-overlay"></div>
+
+<div id="hotbar">
+  <div class="hotbar-slot" data-slot="0"><span class="hotbar-key">1</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="1"><span class="hotbar-key">2</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="2"><span class="hotbar-key">3</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="3"><span class="hotbar-key">4</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="4"><span class="hotbar-key">5</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="5"><span class="hotbar-key">6</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+</div>
+<div id="pickup-notification"></div>
+
+
+<div id="scanner-overlay">
+  <div id="scanner-readout">SCANNING...</div>
+</div>
 
 <!-- Menu Button (gear icon, hidden until game starts) -->
 <button id="menu-btn" aria-label="Settings">&#9881;</button>
@@ -414,16 +544,6 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <div class="settings-row">
 <span class="settings-label">Coordinates</span>
 <select class="settings-select" id="hud-pos-coords">
-<option value="top-left">Top-Left</option>
-<option value="top-right">Top-Right</option>
-<option value="bottom-left">Bottom-Left</option>
-<option value="bottom-right" selected>Bottom-Right</option>
-<option value="hidden">Hidden</option>
-</select>
-</div>
-<div class="settings-row">
-<span class="settings-label">Compass</span>
-<select class="settings-select" id="hud-pos-compass">
 <option value="top-left" selected>Top-Left</option>
 <option value="top-right">Top-Right</option>
 <option value="bottom-left">Bottom-Left</option>
@@ -432,8 +552,8 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 </select>
 </div>
 <div class="settings-row">
-<span class="settings-label">Minimap</span>
-<select class="settings-select" id="hud-pos-minimap">
+<span class="settings-label">Compass</span>
+<select class="settings-select" id="hud-pos-compass">
 <option value="top-left">Top-Left</option>
 <option value="top-right">Top-Right</option>
 <option value="bottom-left">Bottom-Left</option>
@@ -442,12 +562,22 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 </select>
 </div>
 <div class="settings-row">
+<span class="settings-label">Minimap</span>
+<select class="settings-select" id="hud-pos-minimap">
+<option value="top-left" selected>Top-Left</option>
+<option value="top-right">Top-Right</option>
+<option value="bottom-left">Bottom-Left</option>
+<option value="bottom-right">Bottom-Right</option>
+<option value="hidden">Hidden</option>
+</select>
+</div>
+<div class="settings-row">
 <span class="settings-label">Time / Phase</span>
 <select class="settings-select" id="hud-pos-time">
 <option value="top-left">Top-Left</option>
 <option value="top-right">Top-Right</option>
-<option value="bottom-left" selected>Bottom-Left</option>
-<option value="bottom-right">Bottom-Right</option>
+<option value="bottom-left">Bottom-Left</option>
+<option value="bottom-right" selected>Bottom-Right</option>
 <option value="hidden">Hidden</option>
 </select>
 </div>
@@ -1306,6 +1436,554 @@ function updateSporeBloom(dt) {
 camera.position.set(0, getHeight(0, 0) + 2.5, 0);
 updateChunks();
 
+// ── Inventory System ──────────────────────────────────────────
+const inventory = [null, null, null, null, null, null]; // 6 slots
+let activeSlot = 0;
+const hotbar = document.getElementById('hotbar');
+const hotbarSlots = hotbar.querySelectorAll('.hotbar-slot');
+const pickupNotif = document.getElementById('pickup-notification');
+let pickupNotifTimer = 0;
+
+function updateHotbarUI() {
+  hotbarSlots.forEach((slot, i) => {
+    const item = inventory[i];
+    const icon = slot.querySelector('.hotbar-icon');
+    const label = slot.querySelector('.hotbar-label');
+    slot.classList.toggle('active', i === activeSlot);
+    slot.classList.toggle('empty', !item);
+    icon.textContent = item ? item.icon : '';
+    icon.style.opacity = (item && item.active) ? '1' : '0.4';
+    label.textContent = item ? item.name : '';
+  });
+}
+
+function addToInventory(item) {
+  const emptySlot = inventory.indexOf(null);
+  if (emptySlot === -1) return false; // full
+  inventory[emptySlot] = item;
+  updateHotbarUI();
+  showPickupNotification(item.name + ' acquired');
+  return true;
+}
+
+function showPickupNotification(text) {
+  pickupNotif.textContent = text;
+  pickupNotif.style.opacity = '1';
+  pickupNotifTimer = 2.5; // seconds
+}
+
+function selectSlot(i) {
+  // Deactivate current item if it has an onDeactivate
+  const currentItem = inventory[activeSlot];
+  if (currentItem && currentItem.active && currentItem.onDeactivate) {
+    currentItem.onDeactivate();
+    currentItem.active = false;
+  }
+  activeSlot = i;
+  updateHotbarUI();
+}
+
+function useActiveItem() {
+  const item = inventory[activeSlot];
+  if (!item || !item.onUse) return;
+  item.onUse();
+  updateHotbarUI();
+}
+
+// Keyboard: number keys to select, F to use
+document.addEventListener('keydown', e => {
+  if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+    selectSlot(parseInt(e.code.charAt(5)) - 1);
+  }
+  if (e.code === 'KeyF') useActiveItem();
+});
+
+// Touch: tap slots to select, tap active slot again to use
+hotbarSlots.forEach((slot, i) => {
+  slot.addEventListener('click', e => {
+    e.stopPropagation();
+    if (activeSlot === i && inventory[i]) useActiveItem();
+    else selectSlot(i);
+  });
+  slot.addEventListener('touchend', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (activeSlot === i && inventory[i]) useActiveItem();
+    else selectSlot(i);
+  }, { passive: false });
+});
+
+updateHotbarUI();
+
+// ── Locator Item Definition ───────────────────────────────────
+const locatorTargets = [
+  { name: 'Ancient Signal', x: 150, z: 170, color: 0x44ff88 },
+];
+let currentLocatorTarget = 0;
+let locatorActive = false;
+
+// 3D holographic arrow — extruded chevron with tail, clear directionality
+const arrowGroup = new THREE.Group();
+const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.55, fog: false });
+const arrowMat2 = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.25, fog: false });
+
+// Build a 3D arrow: chevron head + rectangular tail, extruded vertically
+// Points along +Z in local space
+const arrGeo = new THREE.BufferGeometry();
+const h = 0.4; // half-height (extrusion thickness)
+// Chevron head vertices (top and bottom faces)
+// Top face (y = +h)
+// Bottom face (y = -h)
+const v = [
+  // -- TOP face --
+   0,    h,  2.0,   // 0: tip
+  -1.2,  h,  0.0,   // 1: left wing
+  -0.3,  h,  0.3,   // 2: left inner
+  -0.3,  h, -1.5,   // 3: tail left
+   0.3,  h, -1.5,   // 4: tail right
+   0.3,  h,  0.3,   // 5: right inner
+   1.2,  h,  0.0,   // 6: right wing
+  // -- BOTTOM face --
+   0,   -h,  2.0,   // 7
+  -1.2, -h,  0.0,   // 8
+  -0.3, -h,  0.3,   // 9
+  -0.3, -h, -1.5,   // 10
+   0.3, -h, -1.5,   // 11
+   0.3, -h,  0.3,   // 12
+   1.2, -h,  0.0,   // 13
+];
+const positions = new Float32Array(v.flat());
+// Faces (triangles)
+const indices = [
+  // Top face (chevron + tail)
+  0,2,1, 0,5,2, 0,6,5, 2,5,4, 2,4,3,
+  // Bottom face (reversed winding)
+  7,8,9, 7,9,12, 7,12,13, 9,11,12, 9,10,11,
+  // Side faces - left wing edge
+  0,1,8, 0,8,7,
+  // Left wing to inner
+  1,2,9, 1,9,8,
+  // Left inner down to tail
+  2,3,10, 2,10,9,
+  // Tail bottom
+  3,4,11, 3,11,10,
+  // Tail right up to inner
+  4,5,12, 4,12,11,
+  // Right inner to wing
+  5,6,13, 5,13,12,
+  // Right wing edge
+  6,0,7, 6,7,13,
+];
+arrGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+arrGeo.setIndex(indices);
+arrGeo.computeVertexNormals();
+
+const arrowMesh = new THREE.Mesh(arrGeo, arrowMat);
+arrowGroup.add(arrowMesh);
+
+// Outer glow shell (slightly larger, more transparent)
+const arrowGlow = new THREE.Mesh(arrGeo, arrowMat2);
+arrowGlow.scale.set(1.25, 1.5, 1.25);
+arrowGroup.add(arrowGlow);
+
+arrowGroup.visible = false;
+scene.add(arrowGroup);
+
+const locatorItem = {
+  name: 'Locator',
+  icon: '\u{1F7E2}',
+  active: false,
+  onUse: function() {
+    if (this.active) {
+      // Toggle off
+      this.active = false;
+      locatorActive = false;
+      arrowGroup.visible = false;
+      showPickupNotification('Locator off');
+      return;
+    }
+    this.active = true;
+    currentLocatorTarget = 0;
+    locatorActive = true;
+    arrowGroup.visible = true;
+    const t = locatorTargets[currentLocatorTarget];
+    arrowMat.color.set(t.color);
+    arrowMat2.color.set(t.color);
+    showPickupNotification('Tracking: ' + t.name);
+  },
+  onDeactivate: function() {
+    this.active = false;
+    locatorActive = false;
+    arrowGroup.visible = false;
+  }
+};
+
+// ── Locator Beacon Pickup Object ──────────────────────────────
+// ── Locator device on the ground with downward light beam ──
+const beaconGroup = new THREE.Group();
+const beaconX = -30, beaconZ = 52;
+const beaconTerrY = getHeight(beaconX, beaconZ);
+beaconGroup.position.set(beaconX, beaconTerrY, beaconZ);
+beaconGroup.rotation.y = Math.atan2(-beaconX, -beaconZ); // face toward spawn (0,0)
+
+// Device body: Tracking fob (chunky black box with silver edges, red lens)
+const fobBlackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.05, 0.05, 0.07) });
+const fobSilverMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.55, 0.55, 0.6) });
+const fobRedMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.9 });
+// Main black body
+const fobBody = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.12), fobBlackMat);
+fobBody.position.y = 0.175;
+beaconGroup.add(fobBody);
+// Silver top edge/cap
+const fobTopCap = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.13), fobSilverMat);
+fobTopCap.position.y = 0.37;
+beaconGroup.add(fobTopCap);
+// Silver side rails (left and right edges)
+const fobRailL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSilverMat);
+fobRailL.position.set(-0.16, 0.175, 0);
+beaconGroup.add(fobRailL);
+const fobRailR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSilverMat);
+fobRailR.position.set(0.16, 0.175, 0);
+beaconGroup.add(fobRailR);
+// Red glowing lens (circle on front face, upper portion)
+const fobLensRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 16), fobSilverMat);
+fobLensRing.position.set(0, 0.26, 0.061);
+beaconGroup.add(fobLensRing);
+const devTop = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), fobRedMat);
+devTop.position.set(0, 0.26, 0.065);
+beaconGroup.add(devTop);
+// Dark groove/slot below the lens
+const fobSlot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.01), new THREE.MeshBasicMaterial({ color: 0x111115 }));
+fobSlot.position.set(0, 0.12, 0.061);
+beaconGroup.add(fobSlot);
+// Antenna sticking up from top cap
+const fobAntennaMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.08, 0.08, 0.1) });
+const fobAntenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25, 8), fobAntennaMat);
+fobAntenna.position.set(0, 0.525, 0);
+beaconGroup.add(fobAntenna);
+// Ball at end of antenna
+const fobBall = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), fobBlackMat);
+fobBall.position.set(0, 0.67, 0);
+beaconGroup.add(fobBall);
+// Small green dot in center of front face
+const fobDotMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.7 });
+const fobDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), fobDotMat);
+fobDot.position.set(0, 0.175, 0.062);
+beaconGroup.add(fobDot);
+// Dummy for animation loop reference
+const devRing = { rotation: { y: 0 } };
+scene.add(beaconGroup);
+
+// Downward light beam from above, pointing at the device
+const beaconBeamGroup = new THREE.Group();
+beaconBeamGroup.position.set(beaconX, beaconTerrY, beaconZ);
+// Cone of light pointing down
+const beamGeo = new THREE.CylinderGeometry(0.15, 1.5, 12, 16, 1, true);
+const beamMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+beamMesh.position.y = 7; // center of beam
+beaconBeamGroup.add(beamMesh);
+// Brighter inner core
+const beamCoreGeo = new THREE.CylinderGeometry(0.05, 0.4, 12, 12, 1, true);
+const beamCoreMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+const beamCore = new THREE.Mesh(beamCoreGeo, beamCoreMat);
+beamCore.position.y = 7;
+beaconBeamGroup.add(beamCore);
+// Ground glow ring where beam hits
+const groundGlowMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+const groundGlow = new THREE.Mesh(new THREE.RingGeometry(0.2, 1.5, 16), groundGlowMat);
+groundGlow.rotation.x = -Math.PI / 2;
+groundGlow.position.y = 0.05;
+beaconBeamGroup.add(groundGlow);
+scene.add(beaconBeamGroup);
+
+let beaconPickedUp = false;
+
+// ── Ancient Artifact — Ruins (Phase 1: ground + platform) ────
+var ARTIFACT_X = 150, ARTIFACT_Z = 170;
+var artifactTerrY = getHeight(ARTIFACT_X, ARTIFACT_Z);
+var wallColliders = [];
+
+var ruinStoneMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.22, 0.17, 0.25) });
+
+var gp1 = new THREE.Mesh(new THREE.CylinderGeometry(20,20,0.1,16), ruinStoneMat);
+gp1.position.set(ARTIFACT_X, artifactTerrY + 0.05, ARTIFACT_Z);
+scene.add(gp1);
+
+var plat1 = new THREE.Mesh(new THREE.CylinderGeometry(3,3.3,0.8,12), ruinStoneMat);
+plat1.position.set(ARTIFACT_X, artifactTerrY + 0.4, ARTIFACT_Z);
+scene.add(plat1);
+
+var plat2 = new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,0.3,8), ruinStoneMat);
+plat2.position.set(ARTIFACT_X, artifactTerrY + 0.95, ARTIFACT_Z);
+scene.add(plat2);
+
+var ped1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.25,1.5,6), ruinStoneMat);
+ped1.position.set(ARTIFACT_X, artifactTerrY + 1.85, ARTIFACT_Z);
+scene.add(ped1);
+
+var crystMat = new THREE.MeshBasicMaterial({ color: 0x7744cc, transparent: true, opacity: 0.6 });
+var crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), crystMat);
+crystal.position.set(ARTIFACT_X, artifactTerrY + 2.75, ARTIFACT_Z);
+scene.add(crystal);
+
+var colH = [2.8,1.5,3.0,1.8,2.5,2.0];
+for (var ci=0; ci<6; ci++) {
+  var ang = (ci/6)*Math.PI*2;
+  var cm = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,colH[ci],8), ruinStoneMat);
+  cm.position.set(ARTIFACT_X+Math.cos(ang)*4.5, artifactTerrY+colH[ci]/2, ARTIFACT_Z+Math.sin(ang)*4.5);
+  scene.add(cm);
+}
+
+// North wall fragments
+var nwD = [[-2.5,-12,2,3.8],[-0.3,-12.3,2,4.2],[1.9,-12.1,2,3],[4,-11.5,1.8,2.2]];
+for (var ni=0; ni<nwD.length; ni++) {
+  var nd = nwD[ni];
+  var nw = new THREE.Mesh(new THREE.BoxGeometry(nd[2],nd[3],0.5), ruinStoneMat);
+  nw.position.set(ARTIFACT_X+nd[0], artifactTerrY+nd[3]/2, ARTIFACT_Z+nd[1]);
+  scene.add(nw);
+  wallColliders.push({minX:ARTIFACT_X+nd[0]-nd[2]/2, maxX:ARTIFACT_X+nd[0]+nd[2]/2, minZ:ARTIFACT_Z+nd[1]-0.25, maxZ:ARTIFACT_Z+nd[1]+0.25});
+}
+
+// Monolith + floating ring
+var mono = new THREE.Mesh(new THREE.BoxGeometry(0.6,5,0.6), ruinStoneMat);
+mono.position.set(ARTIFACT_X-8, artifactTerrY+2.5, ARTIFACT_Z-10);
+scene.add(mono);
+var monolithRing = new THREE.Mesh(new THREE.TorusGeometry(0.8,0.1,8,16), crystMat);
+monolithRing.position.set(ARTIFACT_X-8, artifactTerrY+6, ARTIFACT_Z-10);
+monolithRing.rotation.x = Math.PI/2;
+scene.add(monolithRing);
+
+// South alcove walls
+var saD = [[0,14,8,1.5,0.5],[-3.75,11.5,0.5,1.2,5],[3.75,11.5,0.5,1,5]];
+for (var si2=0; si2<saD.length; si2++) {
+  var sd2 = saD[si2];
+  var sw2 = new THREE.Mesh(new THREE.BoxGeometry(sd2[2],sd2[3],sd2[4]), ruinStoneMat);
+  sw2.position.set(ARTIFACT_X+sd2[0], artifactTerrY+sd2[3]/2, ARTIFACT_Z+sd2[1]);
+  scene.add(sw2);
+  wallColliders.push({minX:ARTIFACT_X+sd2[0]-sd2[2]/2, maxX:ARTIFACT_X+sd2[0]+sd2[2]/2, minZ:ARTIFACT_Z+sd2[1]-sd2[4]/2, maxZ:ARTIFACT_Z+sd2[1]+sd2[4]/2});
+}
+
+// West sunken area floor + border walls
+var sfm = new THREE.Mesh(new THREE.BoxGeometry(8,0.15,6), ruinStoneMat);
+sfm.position.set(ARTIFACT_X-12, artifactTerrY-0.5, ARTIFACT_Z);
+scene.add(sfm);
+var wbD = [[-16,0,0.5,1.5,6],[-12,-3,8,1.5,0.5]];
+for (var wi=0; wi<wbD.length; wi++) {
+  var wd = wbD[wi];
+  var wm = new THREE.Mesh(new THREE.BoxGeometry(wd[2],wd[3],wd[4]), ruinStoneMat);
+  wm.position.set(ARTIFACT_X+wd[0], artifactTerrY+0.25, ARTIFACT_Z+wd[1]);
+  scene.add(wm);
+  wallColliders.push({minX:ARTIFACT_X+wd[0]-wd[2]/2, maxX:ARTIFACT_X+wd[0]+wd[2]/2, minZ:ARTIFACT_Z+wd[1]-wd[4]/2, maxZ:ARTIFACT_Z+wd[1]+wd[4]/2});
+}
+
+// East columns
+var ecD = [[-3,3.5,0.08],[0,4,-0.05],[3,2.5,0.1],[6,3.2,-0.08]];
+for (var ei=0; ei<ecD.length; ei++) {
+  var ed = ecD[ei];
+  var em = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,ed[1],8), ruinStoneMat);
+  em.position.set(ARTIFACT_X+12, artifactTerrY+ed[1]/2, ARTIFACT_Z+ed[0]);
+  em.rotation.z = ed[2];
+  scene.add(em);
+}
+
+// Ramp steps
+for (var ri2=0; ri2<4; ri2++) {
+  var rs = new THREE.Mesh(new THREE.BoxGeometry(4,0.2,1), ruinStoneMat);
+  rs.position.set(ARTIFACT_X, artifactTerrY+ri2*0.2+0.1, ARTIFACT_Z+4.5+ri2);
+  scene.add(rs);
+}
+
+// Scattered debris
+for (var dbi=0; dbi<12; dbi++) {
+  var dba = uhash(dbi*137, dbi*251) * Math.PI * 2;
+  var dbd = uhash(dbi*311, dbi*419) * 16;
+  var dbs = 0.2 + uhash(dbi*523, dbi*617) * 0.3;
+  var dbm = new THREE.Mesh(new THREE.BoxGeometry(dbs, dbs*0.7, dbs*0.8), ruinStoneMat);
+  dbm.position.set(ARTIFACT_X+Math.cos(dba)*dbd, artifactTerrY+dbs*0.3, ARTIFACT_Z+Math.sin(dba)*dbd);
+  dbm.rotation.set(uhash(dbi*907,dbi*1009)*Math.PI, uhash(dbi*1103,dbi*1201)*Math.PI, 0);
+  scene.add(dbm);
+}
+// ── Puzzle Rings on Central Platform ──────────────────────────
+var puzzleSolved = false;
+var ringAngles = [0, 0, 0];
+var ringTargets = [2, 4, 1];
+var ringMeshes = [];
+var ringNotches = [];
+
+var ringRadii = [2.6, 2.1, 1.6];
+var ringMat2 = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.15, 0.1, 0.2) });
+
+for (var pri = 0; pri < 3; pri++) {
+  var pRing = new THREE.Mesh(new THREE.TorusGeometry(ringRadii[pri], 0.15, 8, 24), ringMat2);
+  pRing.position.set(ARTIFACT_X, artifactTerrY + 0.82, ARTIFACT_Z);
+  pRing.rotation.x = Math.PI / 2;
+  scene.add(pRing);
+  ringMeshes.push(pRing);
+
+  var notchMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.7 });
+  var notch = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), notchMat);
+  notch.position.set(
+    ARTIFACT_X + Math.cos(0) * ringRadii[pri],
+    artifactTerrY + 0.82,
+    ARTIFACT_Z + Math.sin(0) * ringRadii[pri]
+  );
+  scene.add(notch);
+  ringNotches.push({ mesh: notch, mat: notchMat, radius: ringRadii[pri] });
+}
+
+function updateRingNotches() {
+  for (var uri = 0; uri < 3; uri++) {
+    var angle = ringAngles[uri] * (Math.PI / 3);
+    ringNotches[uri].mesh.position.set(
+      ARTIFACT_X + Math.cos(angle) * ringNotches[uri].radius,
+      artifactTerrY + 0.82,
+      ARTIFACT_Z + Math.sin(angle) * ringNotches[uri].radius
+    );
+    var isCorrect = ringAngles[uri] === ringTargets[uri];
+    ringNotches[uri].mat.opacity = isCorrect ? 1.0 : 0.5;
+    ringNotches[uri].mat.color.set(isCorrect ? 0x44ff88 : 0x44aaff);
+  }
+}
+
+function rotateRing(ringIndex) {
+  if (puzzleSolved) return;
+  ringAngles[ringIndex] = (ringAngles[ringIndex] + 1) % 6;
+  updateRingNotches();
+  if (ringAngles[0] === ringTargets[0] && ringAngles[1] === ringTargets[1] && ringAngles[2] === ringTargets[2]) {
+    puzzleSolved = true;
+    onPuzzleSolved();
+  }
+}
+
+// ── Hint on North Wall: three concentric rings with target notches ──
+// Single diagram on the center wall fragment showing all 3 rings + their target positions
+var hintDimMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.25 });
+var hintBrightMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.8 });
+var hintCenterX = ARTIFACT_X - 0.3;
+var hintCenterY = artifactTerrY + 2.5;
+var hintCenterZ = ARTIFACT_Z - 12.05 + 0.26;
+var hintRadii = [0.5, 0.35, 0.2]; // visual sizes on wall (outer, middle, inner)
+
+for (var hri = 0; hri < 3; hri++) {
+  // Dim ring outline
+  var hr = new THREE.Mesh(new THREE.TorusGeometry(hintRadii[hri], 0.015, 6, 16), hintDimMat);
+  hr.position.set(hintCenterX, hintCenterY, hintCenterZ);
+  // default orientation: flat in XY plane, facing Z (toward player)
+  scene.add(hr);
+  // Bright notch at target position
+  var tAngle = ringTargets[hri] * (Math.PI / 3);
+  var hNotch = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), hintBrightMat);
+  // On the wall face (XY plane, Z is wall face normal)
+  hNotch.position.set(
+    hintCenterX + Math.cos(tAngle) * hintRadii[hri],
+    hintCenterY - Math.sin(tAngle) * hintRadii[hri],
+    hintCenterZ
+  );
+  scene.add(hNotch);
+}
+
+// ── Tricorder Spawn + Pickup ─────────────────────────────────
+var tricorderSpawned = false;
+var tricorderMesh = null;
+var tricorderPickedUp = false;
+
+function onPuzzleSolved() {
+  var puzzleUI2 = document.getElementById('puzzle-ui');
+  puzzleUI2.style.display = 'none';
+  showPickupNotification('Alignment complete!');
+
+  for (var fi = 0; fi < 3; fi++) {
+    ringNotches[fi].mat.color.set(0x44ff88);
+    ringNotches[fi].mat.opacity = 1.0;
+  }
+
+  setTimeout(function() {
+    spawnTricorder();
+  }, 2000);
+}
+
+function spawnTricorder() {
+  tricorderSpawned = true;
+
+  var tcBodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.4) });
+  var tcBody = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.08), tcBodyMat);
+
+  var tcFlipMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.4, 0.38) });
+  var tcFlip = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.06), tcFlipMat);
+  tcFlip.position.set(0, 0.25, 0.03);
+  tcFlip.rotation.x = 0.5;
+
+  var tcScreenMat = new THREE.MeshBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.8 });
+  var tcScreen = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.01), tcScreenMat);
+  tcScreen.position.set(0, 0.02, 0.031);
+  tcFlip.add(tcScreen);
+
+  var tcLightMat = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
+  var tcLight = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), tcLightMat);
+  tcLight.position.set(-0.06, 0.15, 0.041);
+  tcBody.add(tcLight);
+
+  var tcBtnMat1 = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+  var tcBtn1 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.01), tcBtnMat1);
+  tcBtn1.position.set(0.05, 0.05, 0.041);
+  tcBody.add(tcBtn1);
+  var tcBtnMat2 = new THREE.MeshBasicMaterial({ color: 0x4488ff });
+  var tcBtn2 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.01), tcBtnMat2);
+  tcBtn2.position.set(0.05, 0.0, 0.041);
+  tcBody.add(tcBtn2);
+
+  tcBody.add(tcFlip);
+
+  tcBody.position.set(ARTIFACT_X, artifactTerrY + 3.5, ARTIFACT_Z);
+  scene.add(tcBody);
+  tricorderMesh = tcBody;
+
+  showPickupNotification('A device has appeared...');
+}
+
+// ── Scanner (Tricorder) Item ─────────────────────────────────
+var scannerActive = false;
+var scannerOverlay = null;
+var scannerReadout = null;
+
+var tricorderItem = {
+  name: 'Scanner',
+  icon: '\u{1F4F1}',
+  active: false,
+  onUse: function() {
+    if (this.active) {
+      this.active = false;
+      scannerActive = false;
+      if (scannerOverlay) scannerOverlay.style.display = 'none';
+      showPickupNotification('Scanner off');
+    } else {
+      this.active = true;
+      scannerActive = true;
+      showPickupNotification('Scanner active');
+    }
+  },
+  onDeactivate: function() {
+    this.active = false;
+    scannerActive = false;
+    if (scannerOverlay) scannerOverlay.style.display = 'none';
+  }
+};
+
+// ── Wall Collision System ─────────────────────────────────────
+const PLAYER_RADIUS = 0.5;
+function checkWallCollision(newX, newZ) {
+  for (const c of wallColliders) {
+    const closestX = Math.max(c.minX, Math.min(newX, c.maxX));
+    const closestZ = Math.max(c.minZ, Math.min(newZ, c.maxZ));
+    const dx = newX - closestX, dz = newZ - closestZ;
+    if (dx * dx + dz * dz < PLAYER_RADIUS * PLAYER_RADIUS) {
+      return true; // collision
+    }
+  }
+  return false;
+}
+
 // ── Settings State ─────────────────────────────────────────────
 let invertX = true;
 let invertY = true;
@@ -1314,10 +1992,10 @@ let menuOpen = false;
 
 // ── HUD Position System ────────────────────────────────────────
 const hudPositions = {
-  coords: 'bottom-right',
-  compass: 'top-left',
-  minimap: 'bottom-right',
-  time: 'bottom-left',
+  coords: 'top-left',
+  compass: 'bottom-right',
+  minimap: 'top-left',
+  time: 'bottom-right',
   fps: 'hidden'
 };
 
@@ -1342,7 +2020,7 @@ function updateHudLayout() {
     while (corner.firstChild) corner.removeChild(corner.firstChild);
   }
   // Place each element in its assigned corner (or hide it)
-  const order = ['fps', 'compass', 'minimap', 'coords', 'time'];
+  const order = ['coords', 'minimap', 'fps', 'compass', 'time'];
   for (const key of order) {
     const el = hudElements[key];
     const pos = hudPositions[key];
@@ -1385,7 +2063,7 @@ function updateMinimap() {
 
   const CONTOUR_INTERVAL = 2.5;
   // Shaded relief: light from upper-left (NW), only when expanded
-  const doShading = minimapExpanded;
+  const doShading = minimapExpanded && minimapRange <= 200;
   // Sun direction vector (NW, elevated 45deg): normalized (-1, 1, -1) → (-0.577, 0.577, -0.577)
   const sunX = -0.577, sunY = 0.577, sunZ = -0.577;
 
@@ -1477,6 +2155,50 @@ function updateMinimap() {
   minimapCtx.moveTo(center, center);
   minimapCtx.lineTo(dirX, dirY);
   minimapCtx.stroke();
+
+  // Locator beacon pickup on minimap (cyan diamond, before pickup only)
+  if (!beaconPickedUp) {
+    const step2 = minimapRange / currentMinimapSize;
+    const bmx = (beaconX - camera.position.x) / step2 + center;
+    const bmz = (beaconZ - camera.position.z) / step2 + center;
+    if (bmx >= -5 && bmx < currentMinimapSize+5 && bmz >= -5 && bmz < currentMinimapSize+5) {
+      const ds = minimapExpanded ? 5 : 3;
+      minimapCtx.fillStyle = 'rgba(68, 221, 255, 0.9)';
+      // Draw diamond shape
+      minimapCtx.beginPath();
+      minimapCtx.moveTo(bmx, bmz - ds);
+      minimapCtx.lineTo(bmx + ds, bmz);
+      minimapCtx.lineTo(bmx, bmz + ds);
+      minimapCtx.lineTo(bmx - ds, bmz);
+      minimapCtx.closePath();
+      minimapCtx.fill();
+    }
+  }
+
+  // Locator target dot on minimap
+  if (locatorActive) {
+    const t = locatorTargets[currentLocatorTarget];
+    const step2 = minimapRange / currentMinimapSize;
+    const lmx = (t.x - camera.position.x) / step2 + currentMinimapSize / 2;
+    const lmz = (t.z - camera.position.z) / step2 + currentMinimapSize / 2;
+    if (lmx >= -5 && lmx < currentMinimapSize+5 && lmz >= -5 && lmz < currentMinimapSize+5) {
+      const lc = new THREE.Color(t.color);
+      minimapCtx.fillStyle = `rgb(${Math.floor(lc.r*255)},${Math.floor(lc.g*255)},${Math.floor(lc.b*255)})`;
+      const dotSize = minimapExpanded ? 6 : 4;
+      minimapCtx.beginPath();
+      minimapCtx.arc(lmx, lmz, dotSize, 0, Math.PI * 2);
+      minimapCtx.fill();
+      // Pulsing ring
+      minimapCtx.strokeStyle = minimapCtx.fillStyle;
+      minimapCtx.lineWidth = minimapExpanded ? 2 : 1;
+      const pulseR = dotSize + 3 + Math.sin(Date.now() * 0.004) * 2;
+      minimapCtx.globalAlpha = 0.4;
+      minimapCtx.beginPath();
+      minimapCtx.arc(lmx, lmz, pulseR, 0, Math.PI * 2);
+      minimapCtx.stroke();
+      minimapCtx.globalAlpha = 1;
+    }
+  }
 }
 
 // ── Minimap Expand/Collapse ────────────────────────────────────
@@ -1485,11 +2207,11 @@ let minimapExpanded = false;
 // Create zoom controls (injected into DOM)
 const minimapZoom = document.createElement('div');
 minimapZoom.id = 'minimap-zoom';
-minimapZoom.innerHTML = '<button id="mz-out">−</button><input type="range" id="minimap-zoom-slider" min="0" max="6" value="3"><button id="mz-in">+</button>';
+minimapZoom.innerHTML = '<button id="mz-out">−</button><input type="range" id="minimap-zoom-slider" min="0" max="9" value="6"><button id="mz-in">+</button>';
 document.body.appendChild(minimapZoom);
 
-const ZOOM_LEVELS = [200, 160, 120, 80, 60, 40, 25];
-let zoomIdx = 3; // default 80
+const ZOOM_LEVELS = [500, 400, 300, 200, 160, 120, 80, 60, 40, 25];
+let zoomIdx = 6; // default 80
 
 function updateZoomFromIdx() {
   minimapRange = ZOOM_LEVELS[zoomIdx];
@@ -1508,9 +2230,9 @@ function positionZoomControls() {
     minimapZoom.style.width = '32px';
     minimapZoom.style.height = r.height + 'px';
   } else {
-    // Horizontal strip below the map, aligned to its edges
+    // Horizontal strip above the map, aligned to its edges
     minimapZoom.style.left = r.left + 'px';
-    minimapZoom.style.top = (r.bottom + 8) + 'px';
+    minimapZoom.style.top = (r.top - 40) + 'px';
     minimapZoom.style.width = r.width + 'px';
     minimapZoom.style.height = '32px';
   }
@@ -1521,13 +2243,14 @@ function toggleMinimap() {
   const canvas2 = document.getElementById('minimap-canvas');
   if (minimapExpanded) {
     const isLandscape = window.innerWidth > window.innerHeight;
-    // Reserve space for zoom controls: 50px on right (landscape) or bottom (portrait)
-    const availW = isLandscape ? window.innerWidth - 60 : window.innerWidth;
-    const availH = isLandscape ? window.innerHeight : window.innerHeight - 60;
-    const size = Math.min(availW, availH) - 40;
-    const mapLeft = isLandscape ? (availW - size) / 2 : (window.innerWidth - size) / 2;
-    // Push up slightly to clear joystick / HUD
-    const mapTop = isLandscape ? (window.innerHeight - size) / 2 : Math.max(20, (availH - size) / 2 - 10);
+    const topPad = 60; // clear the top HUD elements
+    const bottomPad = 100; // clear inventory + joystick
+    const sidePad = 20;
+    const availW = window.innerWidth - sidePad * 2 - (isLandscape ? 50 : 0);
+    const availH = window.innerHeight - topPad - bottomPad;
+    const size = Math.min(availW, availH);
+    const mapLeft = (window.innerWidth - size - (isLandscape ? 50 : 0)) / 2;
+    const mapTop = topPad + (availH - size) / 2;
     canvas2.style.position = 'fixed';
     canvas2.style.width = size + 'px';
     canvas2.style.height = size + 'px';
@@ -1547,8 +2270,7 @@ function toggleMinimap() {
     canvas2.style.zIndex = '';
     canvas2.style.borderRadius = '6px';
     minimapZoom.style.display = 'none';
-    minimapRange = MINIMAP_RANGE_DEFAULT;
-    zoomIdx = 3;
+    // Keep zoom level — don't reset when closing
   }
 }
 
@@ -1709,9 +2431,19 @@ forward.y = 0;
 forward.normalize();
 const rightVec = new THREE.Vector3();
 rightVec.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-camera.position.x += (forward.x * fwd + rightVec.x * right) * spd;
-camera.position.z += (forward.z * fwd + rightVec.z * right) * spd;
-const ty = getHeight(camera.position.x, camera.position.z) + 2.5;
+// Try to move, but check wall collision first
+const newX = camera.position.x + (forward.x * fwd + rightVec.x * right) * spd;
+const newZ = camera.position.z + (forward.z * fwd + rightVec.z * right) * spd;
+// Slide along walls: try X and Z independently
+if (!checkWallCollision(newX, camera.position.z)) camera.position.x = newX;
+if (!checkWallCollision(camera.position.x, newZ)) camera.position.z = newZ;
+// Use ruins floor height if inside the ruins footprint (within 20 units of artifact center)
+let ty = getHeight(camera.position.x, camera.position.z) + 2.5;
+const ruinDx = camera.position.x - ARTIFACT_X;
+const ruinDz = camera.position.z - ARTIFACT_Z;
+if (ruinDx * ruinDx + ruinDz * ruinDz < 20 * 20) {
+  ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
+}
 const lerpFactor = isUnderwater ? 0.1 : 0.2;
 camera.position.y += (ty - camera.position.y) * lerpFactor;
 }
@@ -2294,11 +3026,57 @@ started = true;
 document.getElementById('overlay').style.display = 'none';
 document.getElementById('crosshair').style.display = 'block';
 menuBtn.style.display = 'flex';
+hotbar.style.display = 'flex';
 if (!MOBILE) { document.getElementById('ui').style.display='block'; canvas.requestPointerLock(); }
 else { jZone.style.display='block'; }
 lastCX = null; lastCZ = null;
 updateChunks();
 });
+
+// ── Puzzle Ring Raycasting (tap 3D rings to rotate) ──────────
+var puzzleUI = document.getElementById('puzzle-ui');
+var puzzleNearby = false;
+scannerOverlay = document.getElementById('scanner-overlay');
+scannerReadout = document.getElementById('scanner-readout');
+
+var puzzleRaycaster = new THREE.Raycaster();
+var puzzleMouse = new THREE.Vector2();
+
+function handlePuzzleTap(clientX, clientY) {
+  if (puzzleSolved || !started) return;
+  // Check if player is near the platform
+  var pdx = camera.position.x - ARTIFACT_X;
+  var pdz = camera.position.z - ARTIFACT_Z;
+  if (pdx * pdx + pdz * pdz > 64) return; // within 8 units
+
+  // Convert screen coords to normalized device coords
+  puzzleMouse.x = (clientX / window.innerWidth) * 2 - 1;
+  puzzleMouse.y = -(clientY / window.innerHeight) * 2 + 1;
+  puzzleRaycaster.setFromCamera(puzzleMouse, camera);
+
+  // Test intersection with ring meshes (check all 3)
+  var hits = puzzleRaycaster.intersectObjects(ringMeshes);
+  if (hits.length > 0) {
+    var hitMesh = hits[0].object;
+    for (var ri2 = 0; ri2 < ringMeshes.length; ri2++) {
+      if (ringMeshes[ri2] === hitMesh) {
+        rotateRing(ri2);
+        break;
+      }
+    }
+  }
+}
+
+// Listen for clicks/taps on the canvas
+canvas.addEventListener('click', function(e) {
+  handlePuzzleTap(e.clientX, e.clientY);
+});
+canvas.addEventListener('touchend', function(e) {
+  if (e.changedTouches.length > 0) {
+    var t = e.changedTouches[0];
+    handlePuzzleTap(t.clientX, t.clientY);
+  }
+}, {passive: true});
 
 // ── HUD elements ───────────────────────────────────────────────
 const coordsEl = document.getElementById('coords');
@@ -2408,6 +3186,80 @@ if (started) {
 updateJellyfish(dt, now);
 updateSchools(dt, now);
 updateGroundCreatures(dt);
+}
+
+// Locator beacon pickup object
+if (!beaconPickedUp) {
+  // Pulse red antenna light and beam opacity
+  const fobPulse = 0.5 + Math.sin(now * 0.003) * 0.5;
+  fobRedMat.opacity = 0.5 + fobPulse * 0.5;
+  devTop.scale.setScalar(0.8 + fobPulse * 0.4);
+  beamMat.opacity = 0.08 + Math.sin(now * 0.001 * 1.5) * 0.05;
+  beamCoreMat.opacity = 0.2 + Math.sin(now * 0.001 * 2) * 0.08;
+  groundGlowMat.opacity = 0.2 + Math.sin(now * 0.001 * 1.5) * 0.1;
+  // Auto-pickup when player is within 3 units
+  const bdx = camera.position.x - beaconX, bdz = camera.position.z - beaconZ;
+  if (bdx*bdx + bdz*bdz < 9) { // 3 units squared
+    beaconPickedUp = true;
+    scene.remove(beaconGroup);
+    scene.remove(beaconBeamGroup);
+    addToInventory(locatorItem);
+  }
+}
+
+// Locator arrow update
+if (locatorActive) {
+  const lt = locatorTargets[currentLocatorTarget];
+  // Position arrow 8 units in front of player, above terrain
+  const lfwd = new THREE.Vector3();
+  camera.getWorldDirection(lfwd);
+  const arrowX = camera.position.x + lfwd.x * 20;
+  const arrowZ = camera.position.z + lfwd.z * 20;
+  const arrowTerrY = getHeight(arrowX, arrowZ);
+  arrowGroup.position.set(arrowX, arrowTerrY + 0.3, arrowZ);
+  // Point arrow toward target
+  const lAngle = Math.atan2(lt.x - arrowX, lt.z - arrowZ);
+  arrowGroup.rotation.y = lAngle;
+  // Bob slightly
+  arrowGroup.position.y += Math.sin(now * 0.001 * 2) * 0.15;
+}
+
+// Ruins animations: rotating ring and pulsing crystal
+monolithRing.rotation.y += dt * 0.8;
+crystal.material.opacity = 0.45 + Math.sin(now * 0.002) * 0.15;
+
+// Puzzle rings are now tapped directly in 3D (no UI needed)
+
+// Tricorder animation + pickup
+if (tricorderSpawned && !tricorderPickedUp && tricorderMesh) {
+  tricorderMesh.rotation.y += dt * 1.2;
+  tricorderMesh.position.y = artifactTerrY + 3.5 + Math.sin(now * 0.001 * 1.5) * 0.2;
+  var tdx = camera.position.x - ARTIFACT_X;
+  var tdz = camera.position.z - ARTIFACT_Z;
+  if (tdx*tdx + tdz*tdz < 2.25) {
+    tricorderPickedUp = true;
+    scene.remove(tricorderMesh);
+    addToInventory(tricorderItem);
+  }
+}
+
+// Scanner readout
+if (scannerActive && scannerOverlay) {
+  scannerOverlay.style.display = 'block';
+  var terrH = getHeight(camera.position.x, camera.position.z);
+  var biome = getBiomeVal(camera.position.x, camera.position.z);
+  var biomeName = biome > 0.55 ? 'CRYSTAL DESERT' : biome > 0.45 ? 'TRANSITION' : 'PURPLE HIGHLANDS';
+  var scanText = 'BIOME: ' + biomeName + '\n';
+  scanText += 'ELEV: ' + Math.round(terrH * 10) / 10 + '\n';
+  scanText += 'WATER: ' + (terrH < WATER_LEVEL ? 'SUBMERGED' : 'ABOVE') + '\n';
+  scanText += 'BIO-LUM: ' + Math.round((1 - currentDayF) * 100) + '%';
+  scannerReadout.textContent = scanText;
+}
+
+// Pickup notification timer
+if (pickupNotifTimer > 0) {
+  pickupNotifTimer -= dt;
+  if (pickupNotifTimer <= 0) pickupNotif.style.opacity = '0';
 }
 
 // Coordinate HUD

@@ -80,9 +80,9 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #compass .cl-e { right:2px; top:50%; transform:translateY(-50%); }
 #compass .cl-w { left:2px; top:50%; transform:translateY(-50%); }
 #compass .compass-needle {
-  position:absolute; top:50%; left:50%; width:2px; height:20px;
+  position:absolute; top:14px; left:50%; width:2px; height:32px;
   background:linear-gradient(to bottom, rgba(255,120,80,0.9) 50%, rgba(100,80,160,0.5) 50%);
-  transform-origin:center top; transform:translate(-50%, 0);
+  transform:translateX(-50%);
   border-radius:1px;
 }
 
@@ -373,7 +373,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   font-family:monospace; pointer-events:none;
 }
 .hotbar-icon {
-  font-size:20px; pointer-events:none;
+  font-size:28px; pointer-events:none;
 }
 .hotbar-label {
   position:absolute; bottom:-14px; left:50%; transform:translateX(-50%);
@@ -467,11 +467,38 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 }
 .waypoint-name { flex:1; color:rgba(200,170,255,0.8); }
 .waypoint-dist { color:rgba(160,130,200,0.5); font-size:10px; }
-.waypoint-delete {
-  color:rgba(255,100,100,0.5); cursor:pointer; font-size:14px;
+.waypoint-edit {
+  color:rgba(200,170,255,0.5); cursor:pointer; font-size:12px;
   padding:0 4px;
 }
-.waypoint-delete:hover { color:rgba(255,100,100,0.9); }
+.waypoint-edit:hover { color:rgba(200,170,255,0.9); }
+#pin-editor {
+  display:none; position:fixed; z-index:35;
+  background:rgba(20,6,45,0.95); border:1px solid rgba(160,100,255,0.5);
+  border-radius:10px; padding:14px; font-family:monospace; color:#c8aaff;
+  width:200px; pointer-events:auto;
+}
+#pin-editor-title { font-size:12px; color:#e0ccff; margin-bottom:10px; text-align:center; }
+#pin-editor label { font-size:10px; color:rgba(160,130,200,0.6); display:block; margin-bottom:3px; }
+#pin-editor input[type=text] {
+  width:100%; background:rgba(60,30,100,0.5); border:1px solid rgba(160,100,255,0.3);
+  border-radius:4px; color:rgba(200,170,255,0.9); font-family:monospace; font-size:11px;
+  padding:4px 6px; margin-bottom:8px; box-sizing:border-box;
+}
+#pin-color-picks { display:flex; gap:4px; margin-bottom:10px; flex-wrap:wrap; }
+.pin-color-opt {
+  width:22px; height:22px; border-radius:50%; cursor:pointer;
+  border:2px solid transparent; transition:border-color 0.2s;
+}
+.pin-color-opt.selected { border-color:rgba(255,255,255,0.8); }
+#pin-editor-actions { display:flex; gap:6px; }
+#pin-editor-actions button {
+  flex:1; padding:5px; font-family:monospace; font-size:10px; border-radius:4px; cursor:pointer;
+  border:1px solid rgba(160,100,255,0.3);
+}
+#pin-save { background:rgba(60,30,100,0.5); color:rgba(200,170,255,0.8); }
+#pin-delete { background:rgba(100,20,20,0.5); color:rgba(255,150,150,0.8); }
+#pin-cancel { background:rgba(40,20,60,0.5); color:rgba(160,130,200,0.6); }
 #waypoint-drop-pin {
   width:100%;
   margin-top:8px;
@@ -544,6 +571,18 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   <div class="hotbar-slot" data-slot="3"><span class="hotbar-key">4</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
   <div class="hotbar-slot" data-slot="4"><span class="hotbar-key">5</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
   <div class="hotbar-slot" data-slot="5"><span class="hotbar-key">6</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+</div>
+<div id="pin-editor">
+  <div id="pin-editor-title">Edit Pin</div>
+  <label>Name</label>
+  <input type="text" id="pin-name-input" maxlength="20">
+  <label>Color</label>
+  <div id="pin-color-picks"></div>
+  <div id="pin-editor-actions">
+    <button id="pin-save">Save</button>
+    <button id="pin-delete">Delete</button>
+    <button id="pin-cancel">Cancel</button>
+  </div>
 </div>
 <div id="pickup-notification"></div>
 
@@ -1515,6 +1554,12 @@ function updateHotbarUI() {
     slot.classList.toggle('empty', !item);
     icon.textContent = item ? item.icon : '';
     icon.style.opacity = (item && item.active) ? '1' : '0.4';
+    // Color the locator icon to match active waypoint
+    if (item && item.name === 'Locator' && item.active && activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) {
+      icon.style.color = waypoints[activeWaypointIdx].color;
+    } else if (item) {
+      icon.style.color = '';
+    }
     label.textContent = item ? item.name : '';
   });
 }
@@ -1654,7 +1699,7 @@ scene.add(arrowGroup);
 
 var locatorItem = {
   name: 'Locator',
-  icon: '\u{1F7E2}',
+  icon: '◉',
   active: false,
   onUse: function() {
     if (waypoints.length === 0) {
@@ -1824,7 +1869,7 @@ var ped1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.25,1.5,6), ruinStoneM
 ped1.position.set(ARTIFACT_X, artifactTerrY + 1.85, ARTIFACT_Z);
 scene.add(ped1);
 
-var crystMat = new THREE.MeshBasicMaterial({ color: 0x7744cc, transparent: true, opacity: 0.6 });
+var crystMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.6 });
 var crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), crystMat);
 crystal.position.set(ARTIFACT_X, artifactTerrY + 2.75, ARTIFACT_Z);
 scene.add(crystal);
@@ -2277,9 +2322,14 @@ function updateMinimap() {
     }
   }
 
-  // Draw all waypoints on minimap
+  // Draw waypoints on minimap (spawn always visible, others need locator)
+  var _hasLocator = false;
+  for (var _hli = 0; _hli < inventory.length; _hli++) {
+    if (inventory[_hli] && inventory[_hli].name === 'Locator') { _hasLocator = true; break; }
+  }
   for (var wi = 0; wi < waypoints.length; wi++) {
     var wp = waypoints[wi];
+    if (wp.type !== 'fixed' && !_hasLocator) continue; // skip non-spawn without locator
     var wmx = (wp.x - camera.position.x) / step + center;
     var wmz = (wp.z - camera.position.z) / step + center;
     if (wmx >= -5 && wmx < currentMinimapSize+5 && wmz >= -5 && wmz < currentMinimapSize+5) {
@@ -2345,14 +2395,14 @@ function toggleMinimap() {
   const canvas2 = document.getElementById('minimap-canvas');
   if (minimapExpanded) {
     const isLandscape = window.innerWidth > window.innerHeight;
-    const topPad = 60; // clear the top HUD elements
-    const bottomPad = 100; // clear inventory + joystick
+    const topPad = 12; // HUD is hidden when map is fullscreen
+    const bottomPad = 100;
     const sidePad = 20;
     const availW = window.innerWidth - sidePad * 2 - (isLandscape ? 50 : 0);
     const availH = window.innerHeight - topPad - bottomPad;
     const size = Math.min(availW, availH);
-    const mapLeft = (window.innerWidth - size - (isLandscape ? 50 : 0)) / 2;
-    const mapTop = topPad + (availH - size) / 2;
+    const mapLeft = isLandscape ? (window.innerWidth - size - 50) / 2 : sidePad;
+    const mapTop = topPad; // flush to top, no centering
     canvas2.style.position = 'fixed';
     canvas2.style.width = size + 'px';
     canvas2.style.height = size + 'px';
@@ -2362,6 +2412,13 @@ function toggleMinimap() {
     canvas2.style.borderRadius = '10px';
     minimapZoom.style.display = 'flex';
     updateZoomFromIdx();
+    // Move minimap out of HUD corner so we can hide corners without hiding it
+    document.body.appendChild(canvas2);
+    document.getElementById('hud-tl').style.visibility = 'hidden';
+    document.getElementById('hud-tr').style.visibility = 'hidden';
+    document.getElementById('hud-bl').style.visibility = 'hidden';
+    document.getElementById('hud-br').style.visibility = 'hidden';
+    document.getElementById('menu-btn').style.display = 'none';
     requestAnimationFrame(positionZoomControls);
     requestAnimationFrame(positionWaypointPanel);
   } else {
@@ -2374,6 +2431,14 @@ function toggleMinimap() {
     canvas2.style.borderRadius = '6px';
     minimapZoom.style.display = 'none';
     if (waypointPanel) waypointPanel.style.display = 'none';
+    // Put minimap back into its HUD corner and restore visibility
+    var mmWrapper = document.getElementById('minimap-wrapper');
+    if (mmWrapper) mmWrapper.appendChild(canvas2);
+    document.getElementById('hud-tl').style.visibility = '';
+    document.getElementById('hud-tr').style.visibility = '';
+    document.getElementById('hud-bl').style.visibility = '';
+    document.getElementById('hud-br').style.visibility = '';
+    document.getElementById('menu-btn').style.display = 'flex';
     // Keep zoom level — don't reset when closing
   }
 }
@@ -2443,7 +2508,7 @@ function updateWaypointPanel() {
     var dot = '<div class="waypoint-dot" style="background:' + wp.color + '"></div>';
     var name = '<span class="waypoint-name">' + wp.name + '</span>';
     var distLabel = '<span class="waypoint-dist">' + dist + 'm</span>';
-    var del = wp.type === 'pin' ? '<span class="waypoint-delete" data-idx="' + wpi + '">&times;</span>' : '';
+    var del = wp.type === 'pin' ? '<span class="waypoint-edit" data-idx="' + wpi + '">&#9998;</span>' : '';
 
     div.innerHTML = dot + name + distLabel + del;
     div.setAttribute('data-idx', wpi);
@@ -2453,20 +2518,16 @@ function updateWaypointPanel() {
 
 waypointList.addEventListener('click', function(e) {
   e.stopPropagation();
-  var deleteBtn = null;
+  // Check for edit pencil click
+  var editBtn = null;
   var el = e.target;
   while (el && el !== waypointList) {
-    if (el.classList && el.classList.contains('waypoint-delete')) { deleteBtn = el; break; }
+    if (el.classList && el.classList.contains('waypoint-edit')) { editBtn = el; break; }
     el = el.parentElement;
   }
-  if (deleteBtn) {
-    var delIdx = parseInt(deleteBtn.getAttribute('data-idx'));
-    if (waypoints[delIdx] && waypoints[delIdx].type === 'pin') {
-      waypoints.splice(delIdx, 1);
-      if (activeWaypointIdx >= waypoints.length) activeWaypointIdx = waypoints.length - 1;
-      if (activeWaypointIdx < 0) { locatorActive = false; arrowGroup.visible = false; }
-      updateWaypointPanel();
-    }
+  if (editBtn) {
+    var editIdx = parseInt(editBtn.getAttribute('data-idx'));
+    openPinEditor(editIdx);
     return;
   }
   var item = null;
@@ -2507,27 +2568,167 @@ dropPinBtn.addEventListener('click', function(e) {
   updateWaypointPanel();
   showPickupNotification('Pin dropped: ' + pinName);
 });
-dropPinBtn.addEventListener('touchend', function(e) { e.stopPropagation(); e.preventDefault(); }, {passive:false});
+dropPinBtn.addEventListener('touchend', function(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  var pinColor = pinColors[nextPinColorIdx % pinColors.length];
+  nextPinColorIdx++;
+  var pinName = 'Pin ' + nextPinColorIdx;
+  waypoints.push({
+    name: pinName,
+    x: Math.round(camera.position.x),
+    z: Math.round(camera.position.z),
+    color: pinColor,
+    type: 'pin'
+  });
+  updateWaypointPanel();
+  showPickupNotification('Pin dropped: ' + pinName);
+}, {passive:false});
+
+// ── Pin Editor ─────────────────────────────────────────────
+var pinEditor = document.getElementById('pin-editor');
+var pinNameInput = document.getElementById('pin-name-input');
+var pinColorPicks = document.getElementById('pin-color-picks');
+var editingPinIdx = -1;
+var editingPinColor = '';
+
+// Build color swatches
+for (var pci = 0; pci < pinColors.length; pci++) {
+  var swatch = document.createElement('div');
+  swatch.className = 'pin-color-opt';
+  swatch.style.background = pinColors[pci];
+  swatch.setAttribute('data-color', pinColors[pci]);
+  pinColorPicks.appendChild(swatch);
+}
+
+function openPinEditor(idx) {
+  if (!waypoints[idx] || waypoints[idx].type !== 'pin') return;
+  editingPinIdx = idx;
+  editingPinColor = waypoints[idx].color;
+  pinNameInput.value = waypoints[idx].name;
+  // Highlight current color
+  var swatches = pinColorPicks.querySelectorAll('.pin-color-opt');
+  for (var si = 0; si < swatches.length; si++) {
+    swatches[si].classList.toggle('selected', swatches[si].getAttribute('data-color') === editingPinColor);
+  }
+  // Position near the waypoint panel
+  var wpRect = waypointPanel.getBoundingClientRect();
+  pinEditor.style.left = wpRect.left + 'px';
+  pinEditor.style.top = Math.max(10, wpRect.top - 10) + 'px';
+  pinEditor.style.display = 'block';
+}
+
+function closePinEditor() {
+  pinEditor.style.display = 'none';
+  editingPinIdx = -1;
+}
+
+pinColorPicks.addEventListener('click', function(e) {
+  e.stopPropagation();
+  var swatch = e.target;
+  if (swatch.classList && swatch.classList.contains('pin-color-opt')) {
+    editingPinColor = swatch.getAttribute('data-color');
+    var all = pinColorPicks.querySelectorAll('.pin-color-opt');
+    for (var ai = 0; ai < all.length; ai++) {
+      all[ai].classList.toggle('selected', all[ai].getAttribute('data-color') === editingPinColor);
+    }
+  }
+});
+
+document.getElementById('pin-save').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (editingPinIdx >= 0 && waypoints[editingPinIdx]) {
+    waypoints[editingPinIdx].name = pinNameInput.value || 'Pin';
+    waypoints[editingPinIdx].color = editingPinColor;
+    updateWaypointPanel();
+  }
+  closePinEditor();
+});
+
+document.getElementById('pin-delete').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (editingPinIdx >= 0 && waypoints[editingPinIdx] && waypoints[editingPinIdx].type === 'pin') {
+    waypoints.splice(editingPinIdx, 1);
+    if (activeWaypointIdx >= waypoints.length) activeWaypointIdx = waypoints.length - 1;
+    if (activeWaypointIdx < 0) { locatorActive = false; arrowGroup.visible = false; }
+    updateWaypointPanel();
+  }
+  closePinEditor();
+});
+
+document.getElementById('pin-cancel').addEventListener('click', function(e) {
+  e.stopPropagation();
+  closePinEditor();
+});
+
+// Touch handlers for editor
+pinEditor.addEventListener('touchstart', function(e) { e.stopPropagation(); }, {passive:true});
+pinEditor.addEventListener('touchmove', function(e) { e.stopPropagation(); }, {passive:true});
+pinEditor.addEventListener('touchend', function(e) { e.stopPropagation(); }, {passive:true});
+
+// Touch versions of save/delete/cancel
+document.getElementById('pin-save').addEventListener('touchend', function(e) {
+  e.stopPropagation(); e.preventDefault();
+  if (editingPinIdx >= 0 && waypoints[editingPinIdx]) {
+    waypoints[editingPinIdx].name = pinNameInput.value || 'Pin';
+    waypoints[editingPinIdx].color = editingPinColor;
+    updateWaypointPanel();
+  }
+  closePinEditor();
+}, {passive:false});
+document.getElementById('pin-delete').addEventListener('touchend', function(e) {
+  e.stopPropagation(); e.preventDefault();
+  if (editingPinIdx >= 0 && waypoints[editingPinIdx] && waypoints[editingPinIdx].type === 'pin') {
+    waypoints.splice(editingPinIdx, 1);
+    if (activeWaypointIdx >= waypoints.length) activeWaypointIdx = waypoints.length - 1;
+    if (activeWaypointIdx < 0) { locatorActive = false; arrowGroup.visible = false; }
+    updateWaypointPanel();
+  }
+  closePinEditor();
+}, {passive:false});
+document.getElementById('pin-cancel').addEventListener('touchend', function(e) {
+  e.stopPropagation(); e.preventDefault();
+  closePinEditor();
+}, {passive:false});
+pinColorPicks.addEventListener('touchend', function(e) {
+  e.stopPropagation(); e.preventDefault();
+  var swatch = e.target;
+  if (swatch.classList && swatch.classList.contains('pin-color-opt')) {
+    editingPinColor = swatch.getAttribute('data-color');
+    var all = pinColorPicks.querySelectorAll('.pin-color-opt');
+    for (var ai = 0; ai < all.length; ai++) {
+      all[ai].classList.toggle('selected', all[ai].getAttribute('data-color') === editingPinColor);
+    }
+  }
+}, {passive:false});
 
 function positionWaypointPanel() {
   if (!minimapExpanded) { waypointPanel.style.display = 'none'; return; }
+  // Only show waypoint panel if player has the locator
+  var hasLocator = false;
+  for (var hli = 0; hli < inventory.length; hli++) {
+    if (inventory[hli] && inventory[hli].name === 'Locator') { hasLocator = true; break; }
+  }
+  if (!hasLocator) { waypointPanel.style.display = 'none'; return; }
   waypointPanel.style.display = 'block';
   var canvas2 = document.getElementById('minimap-canvas');
   var r = canvas2.getBoundingClientRect();
   var isLandscape = window.innerWidth > window.innerHeight;
   if (isLandscape) {
+    // Landscape: to the right of map + zoom controls
+    waypointPanel.style.right = 'auto';
     waypointPanel.style.left = (r.right + 50) + 'px';
     waypointPanel.style.top = r.top + 'px';
     waypointPanel.style.width = '160px';
+    waypointPanel.style.maxHeight = r.height + 'px';
   } else {
-    waypointPanel.style.left = r.left + 'px';
-    waypointPanel.style.top = (r.top - 45 - 200) + 'px';
-    waypointPanel.style.width = r.width + 'px';
-    if (window.innerWidth - r.right > 170) {
-      waypointPanel.style.left = (r.right + 10) + 'px';
-      waypointPanel.style.top = r.top + 'px';
-      waypointPanel.style.width = '160px';
-    }
+    // Portrait: below the map, 2/3 width, aligned right (clears joystick on left)
+    var panelW = Math.floor(window.innerWidth * 0.63);
+    waypointPanel.style.left = 'auto';
+    waypointPanel.style.right = '12px';
+    waypointPanel.style.top = (r.bottom + 10) + 'px';
+    waypointPanel.style.width = panelW + 'px';
+    waypointPanel.style.maxHeight = (window.innerHeight - r.bottom - 100) + 'px';
   }
   updateWaypointPanel();
 }
@@ -2536,9 +2737,13 @@ function positionWaypointPanel() {
 const compassEl = document.getElementById('compass');
 
 function updateCompass() {
-  // yaw is the camera rotation around Y axis
-  // Rotate the compass so N always points north in the world
-  const deg = -(yaw * 180 / Math.PI);
+  // Use actual camera direction for compass (same as minimap direction indicator)
+  var cfwd = new THREE.Vector3();
+  camera.getWorldDirection(cfwd);
+  // atan2(x, z) gives angle from +Z axis. We want N (which is -Z in our world) at top.
+  // When facing -Z (north), angle should be 0 (no rotation)
+  var compassAngle = Math.atan2(cfwd.x, cfwd.z);
+  var deg = compassAngle * 180 / Math.PI + 180; // +180 because north is -Z
   compassEl.style.transform = 'rotate(' + deg + 'deg)';
 }
 

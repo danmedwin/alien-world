@@ -1,0 +1,2987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Kepler-7X</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:monospace; }
+#c { display:block;width:100%;height:100%;touch-action:none; }
+#crosshair { position:absolute;top:50%;left:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none;display:none; }
+#crosshair::before,#crosshair::after { content:'';position:absolute;background:rgba(255,255,255,0.55);border-radius:2px; }
+#crosshair::before { width:2px;height:18px;left:8px;top:0; }
+#crosshair::after { width:18px;height:2px;top:8px;left:0; }
+#overlay { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,0,15,0.85);z-index:20; }
+#startCard { background:rgba(30,10,55,0.95);border:1px solid rgba(160,100,255,0.4);border-radius:12px;padding:36px 48px;text-align:center;color:#c8aaff;max-width:380px; }
+#startCard h1 { font-size:24px;font-weight:500;margin-bottom:8px;color:#e0ccff;letter-spacing:0.1em; }
+#startCard p { font-size:13px;color:rgba(180,150,220,0.75);margin-bottom:24px;line-height:1.7; }
+#startBtn { background:rgba(100,50,180,0.55);color:#d8bfff;border:1px solid rgba(160,100,255,0.55);padding:12px 32px;font-family:monospace;font-size:15px;cursor:pointer;border-radius:8px;letter-spacing:0.06em; }
+#startBtn:hover { background:rgba(130,70,210,0.7); }
+#hint { font-size:11px;color:rgba(160,130,200,0.5);margin-top:16px;line-height:1.9; }
+#ui { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap; }
+#joystick-zone { position:absolute;bottom:90px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
+#joystick-base { width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(200,170,255,0.25);position:relative; }
+#joystick-thumb { width:46px;height:46px;border-radius:50%;background:rgba(180,140,255,0.25);border:1.5px solid rgba(200,170,255,0.45);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
+#underwater-overlay { position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(8,50,65,0.35),rgba(5,15,40,0.55));pointer-events:none;opacity:0;transition:opacity 0.5s;z-index:2; }
+
+/* ── HUD Layout ───────────────────────────────────────────── */
+#hud-layer {
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  pointer-events:none;
+  z-index:5;
+  padding:12px;
+  padding-bottom:90px; /* space for inventory + joystick */
+}
+#hud-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+}
+#hud-bottom {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+}
+.hud-corner {
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  pointer-events:none;
+}
+#hud-tl { align-items:flex-start; }
+#hud-tr { align-items:flex-end; }
+#hud-bl { align-items:flex-start; }
+#hud-br { align-items:flex-end; }
+
+/* ── HUD element styles (no fixed positioning) ─────────────── */
+#hud { color:rgba(180,150,220,0.5);font-size:11px;pointer-events:none;text-align:right;line-height:1.9; }
+#fps { color:rgba(180,150,220,0.4);font-size:10px;pointer-events:none; }
+#coords { color:rgba(180,150,220,0.5);font-size:11px;pointer-events:none;line-height:1.9; }
+
+/* ── Compass ───────────────────────────────────────────────── */
+#compass-wrapper { pointer-events:none; }
+#compass {
+  width:60px; height:60px; position:relative; border-radius:50%;
+  border:1.5px solid rgba(160,100,255,0.4);
+  background:rgba(20,6,45,0.55);
+}
+#compass .compass-label {
+  position:absolute; font-size:10px; font-family:monospace; font-weight:bold;
+  color:rgba(200,170,255,0.8); text-align:center; width:14px; height:14px; line-height:14px;
+}
+#compass .compass-label.north { color:rgba(255,120,80,0.9); }
+#compass .cl-n { top:2px; left:50%; transform:translateX(-50%); }
+#compass .cl-s { bottom:2px; left:50%; transform:translateX(-50%); }
+#compass .cl-e { right:2px; top:50%; transform:translateY(-50%); }
+#compass .cl-w { left:2px; top:50%; transform:translateY(-50%); }
+#compass .compass-needle {
+  position:absolute; top:50%; left:50%; width:2px; height:20px;
+  background:linear-gradient(to bottom, rgba(255,120,80,0.9) 50%, rgba(100,80,160,0.5) 50%);
+  transform-origin:center top; transform:translate(-50%, 0);
+  border-radius:1px;
+}
+
+/* ── Minimap ───────────────────────────────────────────────── */
+#minimap-wrapper { pointer-events:auto; cursor:pointer; }
+#minimap-canvas {
+  width:120px; height:120px; border-radius:6px;
+  border:1.5px solid rgba(160,100,255,0.4);
+  background:rgba(20,6,45,0.55);
+}
+
+/* ── Minimap Zoom Controls ─────────────────────────────────── */
+#minimap-zoom {
+  display:none;
+  position:fixed;
+  z-index:29;
+  align-items:center;
+  justify-content:center;
+  pointer-events:auto;
+}
+#minimap-zoom button {
+  width:32px; height:32px;
+  background:rgba(20,6,45,0.85);
+  border:1px solid rgba(160,100,255,0.4);
+  border-radius:8px;
+  color:rgba(200,170,255,0.85);
+  font-size:18px; font-family:monospace;
+  cursor:pointer; line-height:1;
+  transition:background 0.2s;
+  flex-shrink:0;
+}
+#minimap-zoom button:hover { background:rgba(60,20,100,0.7); }
+#minimap-zoom-slider {
+  -webkit-appearance:none; appearance:none;
+  background:rgba(60,30,100,0.6);
+  border-radius:2px; outline:none; flex:1;
+}
+#minimap-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none;
+  width:22px; height:22px;
+  background:rgba(180,140,255,0.7);
+  border:1px solid rgba(200,170,255,0.5);
+  border-radius:50%; cursor:pointer;
+}
+#minimap-zoom-slider::-moz-range-thumb {
+  width:22px; height:22px;
+  background:rgba(180,140,255,0.7);
+  border:1px solid rgba(200,170,255,0.5);
+  border-radius:50%; cursor:pointer;
+}
+/* Portrait: horizontal below map */
+#minimap-zoom.zoom-h {
+  flex-direction:row; gap:8px;
+}
+#minimap-zoom.zoom-h #minimap-zoom-slider { width:auto; height:4px; }
+/* Landscape: vertical to right of map */
+#minimap-zoom.zoom-v {
+  flex-direction:column; gap:8px;
+}
+#minimap-zoom.zoom-v #minimap-zoom-slider {
+  width:4px; writing-mode:vertical-lr; direction:rtl;
+}
+.zoom-v #mz-in { order: 1; }
+.zoom-v #minimap-zoom-slider { order: 2; }
+.zoom-v #mz-out { order: 3; }
+
+/* ── Menu Button ─────────────────────────────────────────── */
+#menu-btn {
+  display:none;
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:36px;
+  height:36px;
+  background:rgba(30,10,55,0.6);
+  border:1px solid rgba(160,100,255,0.35);
+  border-radius:8px;
+  cursor:pointer;
+  z-index:25;
+  align-items:center;
+  justify-content:center;
+  color:rgba(200,170,255,0.7);
+  font-size:18px;
+  line-height:1;
+  transition:background 0.2s, border-color 0.2s;
+}
+#menu-btn:hover { background:rgba(60,20,100,0.7);border-color:rgba(160,100,255,0.6); }
+
+/* ── Settings Panel ──────────────────────────────────────── */
+#settings-overlay {
+  display:none;
+  position:absolute;
+  inset:0;
+  background:rgba(3,0,10,0.75);
+  z-index:30;
+  align-items:center;
+  justify-content:center;
+}
+#settings-panel {
+  background:rgba(20,6,45,0.96);
+  border:1px solid rgba(160,100,255,0.35);
+  border-radius:14px;
+  padding:28px 32px 24px;
+  color:#c8aaff;
+  font-family:monospace;
+  max-width:360px;
+  width:90%;
+  max-height:85vh;
+  overflow-y:auto;
+  position:relative;
+}
+@media (max-width:600px) {
+  #settings-panel { max-width:none;width:94%;margin:12px; }
+}
+#settings-panel h2 {
+  font-size:16px;
+  font-weight:500;
+  color:#e0ccff;
+  letter-spacing:0.1em;
+  margin-bottom:18px;
+  text-align:center;
+}
+#settings-close {
+  position:absolute;
+  top:10px;
+  right:14px;
+  background:none;
+  border:none;
+  color:rgba(200,170,255,0.6);
+  font-size:20px;
+  cursor:pointer;
+  font-family:monospace;
+  padding:4px 8px;
+}
+#settings-close:hover { color:#e0ccff; }
+.settings-section {
+  margin-bottom:16px;
+  padding-bottom:14px;
+  border-bottom:1px solid rgba(160,100,255,0.15);
+}
+.settings-section:last-child { border-bottom:none;margin-bottom:0;padding-bottom:0; }
+.settings-section-title {
+  font-size:11px;
+  color:rgba(160,130,200,0.55);
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  margin-bottom:10px;
+}
+.settings-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:10px;
+}
+.settings-row:last-child { margin-bottom:0; }
+.settings-label {
+  font-size:12px;
+  color:rgba(200,170,255,0.75);
+}
+/* Toggle switch */
+.toggle {
+  position:relative;
+  width:40px;
+  height:22px;
+  flex-shrink:0;
+}
+.toggle input { opacity:0;width:0;height:0; }
+.toggle-track {
+  position:absolute;
+  inset:0;
+  background:rgba(60,30,100,0.5);
+  border:1px solid rgba(160,100,255,0.3);
+  border-radius:12px;
+  cursor:pointer;
+  transition:background 0.2s, border-color 0.2s;
+}
+.toggle input:checked + .toggle-track {
+  background:rgba(120,60,200,0.6);
+  border-color:rgba(180,120,255,0.5);
+}
+.toggle-knob {
+  position:absolute;
+  top:3px;
+  left:3px;
+  width:14px;
+  height:14px;
+  background:rgba(200,170,255,0.7);
+  border-radius:50%;
+  transition:transform 0.2s;
+  pointer-events:none;
+}
+.toggle input:checked ~ .toggle-knob {
+  transform:translateX(18px);
+}
+/* Joystick side toggle buttons */
+.side-toggle {
+  display:flex;
+  gap:0;
+}
+.side-toggle button {
+  background:rgba(60,30,100,0.4);
+  border:1px solid rgba(160,100,255,0.25);
+  color:rgba(200,170,255,0.6);
+  font-family:monospace;
+  font-size:11px;
+  padding:5px 14px;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.side-toggle button:first-child { border-radius:6px 0 0 6px; }
+.side-toggle button:last-child { border-radius:0 6px 6px 0;border-left:none; }
+.side-toggle button.active {
+  background:rgba(120,60,200,0.55);
+  border-color:rgba(180,120,255,0.5);
+  color:#e0ccff;
+}
+/* Slider */
+.settings-slider {
+  -webkit-appearance:none;
+  appearance:none;
+  width:120px;
+  height:4px;
+  background:rgba(60,30,100,0.6);
+  border-radius:2px;
+  outline:none;
+  flex-shrink:0;
+}
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  appearance:none;
+  width:14px;
+  height:14px;
+  background:rgba(180,140,255,0.7);
+  border:1px solid rgba(200,170,255,0.5);
+  border-radius:50%;
+  cursor:pointer;
+}
+.settings-slider::-moz-range-thumb {
+  width:14px;
+  height:14px;
+  background:rgba(180,140,255,0.7);
+  border:1px solid rgba(200,170,255,0.5);
+  border-radius:50%;
+  cursor:pointer;
+}
+.slider-value {
+  font-size:11px;
+  color:rgba(160,130,200,0.55);
+  width:28px;
+  text-align:right;
+  flex-shrink:0;
+}
+
+/* ── Settings Select ──────────────────────────────────────── */
+.settings-select {
+  background: rgba(60,30,100,0.5);
+  border: 1px solid rgba(160,100,255,0.3);
+  border-radius: 6px;
+  color: rgba(200,170,255,0.8);
+  font-family: monospace;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── Hotbar ───────────────────────────────────────────────── */
+#hotbar {
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  display:none; /* hidden until game starts */
+  gap:4px; z-index:8; pointer-events:auto;
+}
+.hotbar-slot {
+  width:48px; height:48px; position:relative;
+  background:rgba(20,6,45,0.7);
+  border:1.5px solid rgba(160,100,255,0.3);
+  border-radius:8px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition: border-color 0.2s, background 0.2s;
+}
+.hotbar-slot.active {
+  border-color:rgba(200,170,255,0.8);
+  background:rgba(60,20,100,0.6);
+}
+.hotbar-slot.empty { opacity:0.4; }
+.hotbar-key {
+  position:absolute; top:2px; left:4px;
+  font-size:9px; color:rgba(180,150,220,0.4);
+  font-family:monospace; pointer-events:none;
+}
+.hotbar-icon {
+  font-size:20px; pointer-events:none;
+}
+.hotbar-label {
+  position:absolute; bottom:-14px; left:50%; transform:translateX(-50%);
+  font-size:8px; color:rgba(180,150,220,0.5);
+  font-family:monospace; white-space:nowrap; pointer-events:none;
+}
+#pickup-notification {
+  position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+  color:#e0ccff; font-family:monospace; font-size:13px;
+  background:rgba(20,6,45,0.8); border:1px solid rgba(160,100,255,0.4);
+  border-radius:8px; padding:8px 16px;
+  opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:9;
+  white-space:nowrap;
+}
+@media (hover:none) and (pointer:coarse) {
+  .hotbar-key { display:none; }
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="crosshair"></div>
+<div id="ui">WASD to move | mouse to look | shift to sprint | ESC to release mouse</div>
+
+<!-- HUD Layout -->
+<div id="hud-layer">
+  <div id="hud-top">
+    <div id="hud-tl" class="hud-corner"></div>
+    <div id="hud-tr" class="hud-corner"></div>
+  </div>
+  <div id="hud-bottom">
+    <div id="hud-bl" class="hud-corner"></div>
+    <div id="hud-br" class="hud-corner"></div>
+  </div>
+</div>
+
+<!-- HUD Elements (will be moved into corner wrappers by JS) -->
+<div id="hud"><span id="time-label">06:00</span> <span id="phase-label">DAWN</span></div>
+<div id="fps"></div>
+<div id="coords"></div>
+
+<!-- Compass -->
+<div id="compass-wrapper">
+<div id="compass">
+<span class="compass-label north cl-n">N</span>
+<span class="compass-label cl-s">S</span>
+<span class="compass-label cl-e">E</span>
+<span class="compass-label cl-w">W</span>
+<div class="compass-needle"></div>
+</div>
+</div>
+
+<!-- Minimap -->
+<div id="minimap-wrapper">
+<canvas id="minimap-canvas" width="120" height="120"></canvas>
+</div>
+
+<div id="overlay">
+<div id="startCard">
+<h1>KEPLER-7X</h1>
+<p>An alien world of crystal spires, bioluminescent flora, and endless purple highlands.</p>
+<button id="startBtn">ENTER WORLD</button>
+<div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
+</div>
+</div>
+<div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
+<div id="underwater-overlay"></div>
+
+<div id="hotbar">
+  <div class="hotbar-slot" data-slot="0"><span class="hotbar-key">1</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="1"><span class="hotbar-key">2</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="2"><span class="hotbar-key">3</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="3"><span class="hotbar-key">4</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="4"><span class="hotbar-key">5</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+  <div class="hotbar-slot" data-slot="5"><span class="hotbar-key">6</span><div class="hotbar-icon"></div><div class="hotbar-label"></div></div>
+</div>
+<div id="pickup-notification"></div>
+
+<!-- Menu Button (gear icon, hidden until game starts) -->
+<button id="menu-btn" aria-label="Settings">&#9881;</button>
+
+<!-- Settings Overlay -->
+<div id="settings-overlay">
+<div id="settings-panel">
+<button id="settings-close" aria-label="Close settings">&times;</button>
+<h2>SETTINGS</h2>
+
+<!-- Joystick Position (mobile only) -->
+<div class="settings-section" id="joystick-section" style="display:none">
+<div class="settings-section-title">Controls</div>
+<div class="settings-row">
+<span class="settings-label">Joystick Position</span>
+<div class="side-toggle">
+<button id="joy-left" class="active">Left</button>
+<button id="joy-right">Right</button>
+</div>
+</div>
+</div>
+
+<!-- Look Inversion -->
+<div class="settings-section">
+<div class="settings-section-title">Look</div>
+<div class="settings-row">
+<span class="settings-label">Invert Horizontal</span>
+<label class="toggle">
+<input type="checkbox" id="invert-x" checked>
+<span class="toggle-track"></span>
+<span class="toggle-knob"></span>
+</label>
+</div>
+<div class="settings-row">
+<span class="settings-label">Invert Vertical</span>
+<label class="toggle">
+<input type="checkbox" id="invert-y" checked>
+<span class="toggle-track"></span>
+<span class="toggle-knob"></span>
+</label>
+</div>
+</div>
+
+<!-- HUD Position -->
+<div class="settings-section">
+<div class="settings-section-title">HUD</div>
+<div class="settings-row">
+<span class="settings-label">Coordinates</span>
+<select class="settings-select" id="hud-pos-coords">
+<option value="top-left" selected>Top-Left</option>
+<option value="top-right">Top-Right</option>
+<option value="bottom-left">Bottom-Left</option>
+<option value="bottom-right">Bottom-Right</option>
+<option value="hidden">Hidden</option>
+</select>
+</div>
+<div class="settings-row">
+<span class="settings-label">Compass</span>
+<select class="settings-select" id="hud-pos-compass">
+<option value="top-left">Top-Left</option>
+<option value="top-right">Top-Right</option>
+<option value="bottom-left">Bottom-Left</option>
+<option value="bottom-right" selected>Bottom-Right</option>
+<option value="hidden">Hidden</option>
+</select>
+</div>
+<div class="settings-row">
+<span class="settings-label">Minimap</span>
+<select class="settings-select" id="hud-pos-minimap">
+<option value="top-left" selected>Top-Left</option>
+<option value="top-right">Top-Right</option>
+<option value="bottom-left">Bottom-Left</option>
+<option value="bottom-right">Bottom-Right</option>
+<option value="hidden">Hidden</option>
+</select>
+</div>
+<div class="settings-row">
+<span class="settings-label">Time / Phase</span>
+<select class="settings-select" id="hud-pos-time">
+<option value="top-left">Top-Left</option>
+<option value="top-right">Top-Right</option>
+<option value="bottom-left">Bottom-Left</option>
+<option value="bottom-right" selected>Bottom-Right</option>
+<option value="hidden">Hidden</option>
+</select>
+</div>
+<div class="settings-row">
+<span class="settings-label">FPS</span>
+<select class="settings-select" id="hud-pos-fps">
+<option value="top-left">Top-Left</option>
+<option value="top-right">Top-Right</option>
+<option value="bottom-left">Bottom-Left</option>
+<option value="bottom-right">Bottom-Right</option>
+<option value="hidden" selected>Hidden</option>
+</select>
+</div>
+</div>
+
+<!-- Sound (placeholder) -->
+<div class="settings-section">
+<div class="settings-section-title">Sound</div>
+<div class="settings-row">
+<span class="settings-label">Ambient</span>
+<input type="range" class="settings-slider" id="snd-ambient" min="0" max="100" value="70">
+<span class="slider-value" id="snd-ambient-val">70</span>
+</div>
+<div class="settings-row">
+<span class="settings-label">Music</span>
+<input type="range" class="settings-slider" id="snd-music" min="0" max="100" value="50">
+<span class="slider-value" id="snd-music-val">50</span>
+</div>
+<div class="settings-row">
+<span class="settings-label">Effects</span>
+<input type="range" class="settings-slider" id="snd-fx" min="0" max="100" value="80">
+<span class="slider-value" id="snd-fx-val">80</span>
+</div>
+</div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const MOBILE = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !MOBILE });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, MOBILE ? 1.5 : 2));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 800);
+
+function resize() {
+renderer.setSize(window.innerWidth, window.innerHeight, false);
+camera.aspect = window.innerWidth / window.innerHeight;
+camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Noise ──────────────────────────────────────────────────────
+function uhash(x, y) {
+let a = (Math.imul(x | 0, 1664525) + 1013904223) >>> 0;
+let b = (Math.imul(y | 0, 1664525) + 1013904223) >>> 0;
+a ^= b; a = Math.imul(a, 2246822519) >>> 0;
+b ^= a; b = Math.imul(b, 2246822519) >>> 0;
+return ((a ^ b) >>> 0) / 0xFFFFFFFF;
+}
+function fade(t) { return t * t * (3 - 2 * t); }
+function noise(x, y) {
+const ix = Math.floor(x), iy = Math.floor(y);
+const fx = fade(x - ix), fy = fade(y - iy);
+return (uhash(ix,iy)*(1-fx) + uhash(ix+1,iy)*fx)*(1-fy)
++ (uhash(ix,iy+1)*(1-fx) + uhash(ix+1,iy+1)*fx)*fy;
+}
+function fbm(x, y, o) {
+let v=0, a=1, f=1, s=0;
+for (let i=0; i<o; i++) { v += noise(x*f, y*f)*a; s += a; a *= 0.5; f *= 2; }
+return v / s;
+}
+function getBiomeVal(wx, wz) {
+  return noise(wx * 0.003, wz * 0.003);
+}
+
+function getHeight(wx, wz) {
+  // Base terrain: broad rolling landscape
+  let h = fbm(wx * 0.018, wz * 0.018, 5) * 20 - 3;
+  // Large-scale hills and valleys (mountains and deep basins)
+  let largescale = fbm(wx * 0.005, wz * 0.005, 3) * 18 - 6;
+  // Occasional ridges
+  let fineDetail = fbm(wx * 0.04, wz * 0.04, 2) * 3;
+
+  // Biome modification: desert has flatter large-scale, sharper ridges
+  const bv = getBiomeVal(wx, wz);
+  if (bv > 0.45) {
+    const desertBlend = Math.min(1, (bv - 0.45) / 0.1); // 0 at 0.45, 1 at 0.55+
+    // Flatten large-scale slightly in desert
+    largescale *= (1 - desertBlend * 0.35);
+    // Sharpen fine detail ridges in desert
+    fineDetail *= (1 + desertBlend * 1.0);
+    // Raise desert floor slightly (less water)
+    h += desertBlend * 3.0;
+  }
+
+  h += largescale + fineDetail;
+  return h;
+}
+
+// ── Terrain colours ────────────────────────────────────────────
+function terrainRGBNormal(h) {
+const t = Math.max(0, Math.min(1, (h + 3) / 23));
+if (t < 0.12) return [0.04, 0.04, 0.14];
+if (t < 0.28) return [0.14, 0.06, 0.24];
+if (t < 0.50) return [0.24, 0.10, 0.30];
+if (t < 0.70) return [0.33, 0.15, 0.28];
+if (t < 0.85) return [0.38, 0.22, 0.34];
+return [0.46, 0.36, 0.52];
+}
+
+function terrainRGBDesert(h) {
+const t = Math.max(0, Math.min(1, (h + 3) / 23));
+if (t < 0.12) return [0.12, 0.06, 0.04];
+if (t < 0.28) return [0.25, 0.12, 0.06];
+if (t < 0.50) return [0.35, 0.18, 0.08];
+if (t < 0.70) return [0.42, 0.25, 0.12];
+if (t < 0.85) return [0.50, 0.35, 0.20];
+return [0.55, 0.42, 0.28];
+}
+
+function terrainRGB(h, biomeVal) {
+  if (biomeVal === undefined) biomeVal = 0; // default to normal biome
+  const normal = terrainRGBNormal(h);
+  if (biomeVal <= 0.45) return normal;
+  const desert = terrainRGBDesert(h);
+  if (biomeVal >= 0.55) return desert;
+  // Transition blend
+  const blend = (biomeVal - 0.45) / 0.1;
+  return [
+    normal[0] + (desert[0] - normal[0]) * blend,
+    normal[1] + (desert[1] - normal[1]) * blend,
+    normal[2] + (desert[2] - normal[2]) * blend
+  ];
+}
+
+// ── Bioluminescence ────────────────────────────────────────────
+const bioMaterials = [];
+
+// ── Water level ────────────────────────────────────────────────
+const WATER_LEVEL = 3.0;
+
+// ── Chunks ─────────────────────────────────────────────────────
+const CS = 32, CR = MOBILE ? 18 : 26, RD = MOBILE ? 2 : 3;
+const chunks = new Map();
+
+function buildChunk(cx, cz) {
+const g = new THREE.Group();
+const step = CS / CR, ox = cx * CS, oz = cz * CS;
+
+// Terrain mesh
+const pos = [], col = [], idx = [];
+for (let iz = 0; iz <= CR; iz++) {
+for (let ix = 0; ix <= CR; ix++) {
+const wx = ox + ix*step, wz = oz + iz*step;
+const h = getHeight(wx, wz);
+pos.push(wx, h, wz);
+const bv = getBiomeVal(wx, wz);
+const [r, gr, b] = terrainRGB(h, bv);
+col.push(r, gr, b);
+}
+}
+for (let iz = 0; iz < CR; iz++) {
+for (let ix = 0; ix < CR; ix++) {
+const a = iz*(CR+1)+ix, b=a+1, c=(iz+1)*(CR+1)+ix, d=c+1;
+idx.push(a,c,b, b,c,d);
+}
+}
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+geo.setIndex(idx);
+geo.computeVertexNormals();
+g.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true })));
+
+// Plants
+const PC = MOBILE ? 8 : 18;
+for (let i = 0; i < PC; i++) {
+const h1 = uhash(cx*1031+i*37, cz*997 +i*13);
+const h2 = uhash(cx*991 +i*41, cz*881 +i*17);
+const h3 = uhash(cx*877 +i*53, cz*761 +i*23);
+const h4 = uhash(cx*743 +i*61, cz*631 +i*29);
+const px = ox + h1*CS, pz = oz + h2*CS;
+const py = getHeight(px, pz);
+const type = Math.floor(h3 * 3);
+const bio = h4 > 0.52;
+
+// Check biome at plant position
+const plantBiome = getBiomeVal(px, pz);
+const isDesert = plantBiome > 0.55;
+const isTransition = plantBiome > 0.45 && plantBiome <= 0.55;
+
+// In transition zone, mix plant types based on hash
+const useDesertPlant = isDesert || (isTransition && h3 > 0.5);
+
+if (useDesertPlant) {
+  // ── Desert Plants ──
+  const desertType = Math.floor(h4 * 2); // 0 = crystal cluster, 1 = desert spine
+  if (desertType === 0) {
+    // Crystal Clusters: 2-4 angular prisms
+    const clusterCount = 2 + Math.floor(h1 * 3);
+    for (let k = 0; k < clusterCount; k++) {
+      const ka = uhash(cx*600+i*71+k, cz*500+i*79+k);
+      const kb = uhash(cx*580+i*83+k, cz*480+i*89+k);
+      const hue1 = uhash(cx*400+i*97+k, cz*300+i*101+k);
+      const ht = 1.5 + ka * 4;
+      const wid = 0.15 + kb * 0.25;
+      const crystalColor = new THREE.Color(0.45 + hue1*0.15, 0.25 + hue1*0.1, 0.05);
+      const crystalMat = new THREE.MeshLambertMaterial({
+        color: crystalColor, transparent: true, opacity: 0.85,
+        emissive: new THREE.Color(0, 0, 0), emissiveIntensity: 1
+      });
+      bioMaterials.push({ mat: crystalMat, color: new THREE.Color(0.5, 0.2, 0.05) });
+      const crystal = new THREE.Mesh(new THREE.BoxGeometry(wid, ht, wid * 0.7), crystalMat);
+      crystal.position.set(px + (ka-0.5)*1.2, py + ht/2, pz + (kb-0.5)*1.2);
+      crystal.rotation.set((ka-0.5)*0.3, ka*Math.PI*2, (kb-0.5)*0.4);
+      g.add(crystal);
+    }
+  } else {
+    // Desert Spines: tall thin cylinders like alien cacti
+    const spineHt = 2 + h1 * 5;
+    const spineRad = 0.06 + h2 * 0.08;
+    const spineMat = new THREE.MeshLambertMaterial({
+      color: new THREE.Color(0.65, 0.6, 0.5),
+      emissive: new THREE.Color(0, 0, 0), emissiveIntensity: 1
+    });
+    bioMaterials.push({ mat: spineMat, color: new THREE.Color(0.3, 0.2, 0.1) });
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(spineRad * 0.3, spineRad, spineHt, 5), spineMat);
+    spine.position.set(px, py + spineHt/2, pz);
+    spine.rotation.z = (h3 - 0.5) * 0.15;
+    g.add(spine);
+  }
+} else {
+  // ── Normal Biome Plants (existing) ──
+if (type === 0) {
+const n = 1 + Math.floor(h4 * 3);
+for (let k = 0; k < n; k++) {
+const ka = uhash(cx*600+i*71+k, cz*500+i*79+k);
+const kb = uhash(cx*580+i*83+k, cz*480+i*89+k);
+const hue1 = uhash(cx*400+i*97+k, cz*300+i*101+k);
+const hue2 = uhash(cx*350+i*107+k,cz*250+i*109+k);
+const ht = 1.5 + ka*5, rad = 0.12 + kb*0.3;
+const baseCol = bio
+? new THREE.Color(0.05+hue1*0.15, 0.3+hue2*0.3, 0.7+hue1*0.2)
+: new THREE.Color(0.18+hue1*0.5, 0.04+hue2*0.15, 0.5+hue1*0.5);
+const mat = new THREE.MeshLambertMaterial({
+color: baseCol, transparent: true, opacity: 0.82
+});
+if (bio) {
+mat.emissive = new THREE.Color(0.0, 0.0, 0.0);
+mat.emissiveIntensity = 1;
+bioMaterials.push({ mat, color: new THREE.Color(0.05, 0.4, 0.9) });
+}
+const m = new THREE.Mesh(new THREE.ConeGeometry(rad, ht, 6), mat);
+m.position.set(px+(ka-0.5)*0.7, py+ht/2, pz+(kb-0.5)*0.7);
+m.rotation.y = ka * Math.PI * 2;
+g.add(m);
+}
+} else if (type === 1) {
+const sht = 1.2 + h1*3;
+const stalkMesh = new THREE.Mesh(
+new THREE.CylinderGeometry(0.06, 0.18, sht, 6),
+new THREE.MeshLambertMaterial({ color: new THREE.Color(0.07, 0.18, 0.10) })
+);
+stalkMesh.position.set(px, py+sht/2, pz);
+g.add(stalkMesh);
+const br = 0.28 + h2*0.5;
+const bulbBase = bio
+? new THREE.Color(0.03, 0.5+h3*0.3, 0.15+h3*0.4)
+: new THREE.Color(0.10, 0.42, 0.18);
+const bulbMat = new THREE.MeshLambertMaterial({
+color: bulbBase, transparent: bio, opacity: bio ? 0.9 : 1
+});
+if (bio) {
+bulbMat.emissive = new THREE.Color(0, 0, 0);
+bulbMat.emissiveIntensity = 1;
+bioMaterials.push({ mat: bulbMat, color: new THREE.Color(0.0, 0.7, 0.3) });
+}
+const bm = new THREE.Mesh(new THREE.SphereGeometry(br, 8, 8), bulbMat);
+bm.position.set(px, py+sht+br*0.8, pz);
+g.add(bm);
+} else {
+const fn = 3 + Math.floor(h1*4);
+for (let k = 0; k < fn; k++) {
+const ka = uhash(cx*150+i*139+k, cz*600+i*149+k);
+const ang = (k/fn)*Math.PI*2 + h2*Math.PI;
+const len = 0.8 + ka*2.5;
+const tc = bio
+? new THREE.Color(0.5+ka*0.4, 0.02, 0.5+ka*0.45)
+: new THREE.Color(0.35, 0.04, 0.25);
+const tMat = new THREE.MeshLambertMaterial({ color: tc });
+if (bio) {
+tMat.emissive = new THREE.Color(0, 0, 0);
+tMat.emissiveIntensity = 1;
+bioMaterials.push({ mat: tMat, color: new THREE.Color(0.7, 0.0, 0.6) });
+}
+const tm = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.1, len, 4), tMat);
+tm.position.set(px+Math.cos(ang)*len*0.4, py+len*0.5, pz+Math.sin(ang)*len*0.4);
+tm.rotation.set(Math.sin(ang)*0.55, 0, Math.cos(ang)*0.55);
+g.add(tm);
+}
+}
+} // end normal biome plants
+}
+
+// ── Underwater objects: glowing rocks ──────────────────────────
+const uwRockCount = MOBILE ? 3 : 6;
+for (let i = 0; i < uwRockCount; i++) {
+const rh1 = uhash(cx*3001+i*137, cz*2999+i*139);
+const rh2 = uhash(cx*2997+i*141, cz*2993+i*143);
+const rx = ox + rh1 * CS, rz = oz + rh2 * CS;
+const ry = getHeight(rx, rz);
+if (ry < WATER_LEVEL - 1.0) {
+const rockSize = 0.3 + uhash(cx*2991+i*147, cz*2989+i*149) * 0.8;
+const rockHue = uhash(cx*2987+i*151, cz*2983+i*153);
+const rockMat = new THREE.MeshLambertMaterial({
+color: new THREE.Color(0.05+rockHue*0.1, 0.15+rockHue*0.1, 0.12),
+emissive: new THREE.Color(0,0,0), emissiveIntensity: 1
+});
+bioMaterials.push({ mat: rockMat, color: new THREE.Color(0.0, 0.4+rockHue*0.3, 0.3+rockHue*0.2) });
+const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rockSize, 0), rockMat);
+rock.position.set(rx, ry + rockSize*0.3, rz);
+rock.rotation.set(rh1*Math.PI*2, rh2*Math.PI*2, 0);
+g.add(rock);
+}
+}
+
+// ── Underwater objects: kelp ──────────────────────────────────
+const kelpCount = MOBILE ? 2 : 5;
+for (let i = 0; i < kelpCount; i++) {
+const kh1 = uhash(cx*4001+i*163, cz*3999+i*167);
+const kh2 = uhash(cx*3997+i*173, cz*3993+i*179);
+const kx = ox + kh1 * CS, kz = oz + kh2 * CS;
+const ky = getHeight(kx, kz);
+if (ky < WATER_LEVEL - 2.0) {
+const kelpH = (WATER_LEVEL - ky) * 0.8;
+const kelpHue = uhash(cx*3991+i*181, cz*3989+i*191);
+const kelpMat = new THREE.MeshLambertMaterial({
+color: new THREE.Color(0.02, 0.15+kelpHue*0.2, 0.08+kelpHue*0.15),
+emissive: new THREE.Color(0,0,0), emissiveIntensity: 1
+});
+bioMaterials.push({ mat: kelpMat, color: new THREE.Color(0.0, 0.3, 0.2) });
+const kelp = new THREE.Mesh(
+new THREE.CylinderGeometry(0.04, 0.08, kelpH, 4), kelpMat
+);
+kelp.position.set(kx, ky + kelpH/2, kz);
+kelp.rotation.x = (kh1-0.5)*0.3;
+kelp.rotation.z = (kh2-0.5)*0.3;
+g.add(kelp);
+}
+}
+
+scene.add(g);
+return g;
+}
+
+function chunkKey(cx, cz) { return cx + ',' + cz; }
+let lastCX = null, lastCZ = null;
+
+function updateChunks() {
+const cx = Math.floor(camera.position.x / CS);
+const cz = Math.floor(camera.position.z / CS);
+if (cx === lastCX && cz === lastCZ) return;
+lastCX = cx; lastCZ = cz;
+const needed = new Set();
+for (let dx = -RD; dx <= RD; dx++) {
+for (let dz = -RD; dz <= RD; dz++) {
+const key = chunkKey(cx+dx, cz+dz);
+needed.add(key);
+if (!chunks.has(key)) chunks.set(key, buildChunk(cx+dx, cz+dz));
+}
+}
+for (const [key, grp] of chunks) {
+if (!needed.has(key)) {
+scene.remove(grp);
+grp.traverse(o => {
+if (o.geometry) o.geometry.dispose();
+if (o.material) {
+const idx2 = bioMaterials.findIndex(b => b.mat === o.material);
+if (idx2 !== -1) bioMaterials.splice(idx2, 1);
+if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+else o.material.dispose();
+}
+});
+chunks.delete(key);
+}
+}
+}
+
+// ── Sky ────────────────────────────────────────────────────────
+// Sky group: follows camera so sky is always around the player
+const skyGroup = new THREE.Group();
+scene.add(skyGroup);
+
+const skyMat = new THREE.MeshBasicMaterial({ color: 0x06000f, fog: false, side: THREE.BackSide });
+skyGroup.add(new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), skyMat));
+
+const sPos = [];
+for (let i = 0; i < 2000; i++) {
+const th = Math.random()*Math.PI*2, ph = Math.acos(2*Math.random()-1);
+sPos.push(Math.sin(ph)*Math.cos(th)*580, Math.sin(ph)*Math.sin(th)*580, Math.cos(ph)*580);
+}
+const starMat = new THREE.PointsMaterial({ color:0xeeddff, size:1.5, sizeAttenuation:false, fog:false, transparent:true, opacity:1 });
+skyGroup.add(new THREE.Points(
+new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(sPos, 3)),
+starMat
+));
+
+const gasMesh = new THREE.Mesh(new THREE.SphereGeometry(26,24,18), new THREE.MeshBasicMaterial({ color:0x6644bb, fog:false }));
+gasMesh.position.set(180, 150, -300);
+skyGroup.add(gasMesh);
+const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(40,5,4,32), new THREE.MeshBasicMaterial({ color:0x9977dd, transparent:true, opacity:0.4, fog:false }));
+ringMesh.position.copy(gasMesh.position); ringMesh.rotation.x = Math.PI/3;
+skyGroup.add(ringMesh);
+
+const sunMeshA = new THREE.Mesh(new THREE.SphereGeometry(10,14,10), new THREE.MeshBasicMaterial({ color:0xff7722, fog:false }));
+const sunMeshB = new THREE.Mesh(new THREE.SphereGeometry(7,12,9), new THREE.MeshBasicMaterial({ color:0xfff0cc, fog:false }));
+skyGroup.add(sunMeshA);
+skyGroup.add(sunMeshB);
+
+const sunLightA = new THREE.DirectionalLight(0xffcc88, 0.0); scene.add(sunLightA);
+const sunLightB = new THREE.DirectionalLight(0xfff0cc, 0.0); scene.add(sunLightB);
+const ambLight = new THREE.AmbientLight(0x221133, 0.6); scene.add(ambLight);
+
+const BASE_FOG_FAR = MOBILE ? 150 : 240;
+const fogColor = new THREE.Color(0x06000f);
+scene.fog = new THREE.Fog(fogColor, 60, BASE_FOG_FAR);
+
+let timeOfDay = 0.25;
+const DAY_SPEED = 0.00030;
+const C_NIGHT = new THREE.Color(0x03000a);
+const C_DAWN = new THREE.Color(0x1a0422);
+const C_DAY = new THREE.Color(0x110030);
+
+const C_DUSK = new THREE.Color(0x1a0828); // slightly different hue than dawn
+
+function skyColor(dayF) {
+if (dayF <= 0) return C_NIGHT.clone();
+if (dayF < 0.2) return C_NIGHT.clone().lerp(C_DAWN, dayF/0.2);
+if (dayF < 0.5) return C_DAWN.clone().lerp(C_DAY, (dayF-0.2)/0.3);
+return C_DAY.clone();
+}
+
+const timeEl = document.getElementById('time-label');
+const phaseEl = document.getElementById('phase-label');
+let currentDayF = 0;
+
+// Smoothstep helper
+function smoothstep(a, b, x) {
+const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+return t * t * (3 - 2 * t);
+}
+
+function updateDayNight(t) {
+const h = t * 24; // hour of day (0-24)
+
+// ── Phase & dayF based on fixed schedule ──
+// 06:00-07:00 DAWN — ambient ramps up, bio fades
+// 07:00-20:00 DAY  — full light
+// 20:00-22:00 DUSK — sun A sets first, then sun B
+// 22:00-06:00 NIGHT — dark, full bio
+
+let dayF, phaseName;
+if (h >= 7 && h < 20) {
+  dayF = 1; phaseName = 'DAY';
+} else if (h >= 6 && h < 7) {
+  dayF = smoothstep(6, 7, h); phaseName = 'DAWN';
+} else if (h >= 20 && h < 22) {
+  dayF = 1 - smoothstep(20, 22, h); phaseName = 'DUSK';
+} else {
+  dayF = 0; phaseName = 'NIGHT';
+}
+currentDayF = dayF;
+
+// ── Sun A (large, orange): rises 07:00, sets 20:00, peak ~13:30 ──
+let sunAFrac, sunAElev;
+if (h >= 7 && h < 20) {
+  sunAFrac = (h - 7) / 13;
+  sunAElev = Math.sin(sunAFrac * Math.PI);
+} else {
+  const hNorm = h < 7 ? h + 24 : h;
+  sunAFrac = (hNorm - 20) / 11;
+  sunAElev = -0.3 * Math.sin(sunAFrac * Math.PI);
+}
+const sunAAngle = (h >= 7 && h < 20) ? sunAFrac * Math.PI : Math.PI + ((h < 7 ? h + 24 : h) - 20) / 11 * Math.PI;
+sunMeshA.position.set(Math.cos(sunAAngle - Math.PI/2) * 260, sunAElev * 370, -180);
+sunMeshA.visible = sunAElev > -0.1;
+sunMeshA.getWorldPosition(sunLightA.position);
+const sunAStr = Math.max(0, sunAElev);
+sunLightA.intensity = sunAStr * 1.1;
+sunLightA.color.setRGB(1.0, 0.72 + sunAStr*0.28, 0.3 + sunAStr*0.5);
+sunMeshA.material.color.setRGB(1, 0.45+sunAStr*0.45, 0.1+sunAStr*0.5);
+
+// ── Sun B (small, pale, faster): rises 06:00, sets 22:00, peak ~14:00 ──
+let sunBFrac, sunBElev;
+if (h >= 6 && h < 22) {
+  sunBFrac = (h - 6) / 16;
+  sunBElev = Math.sin(sunBFrac * Math.PI);
+} else {
+  const hNorm = h < 6 ? h + 24 : h;
+  sunBFrac = (hNorm - 22) / 8;
+  sunBElev = -0.3 * Math.sin(sunBFrac * Math.PI);
+}
+const sunBAngle = (h >= 6 && h < 22) ? sunBFrac * Math.PI : Math.PI + ((h < 6 ? h + 24 : h) - 22) / 8 * Math.PI;
+sunMeshB.position.set(Math.cos(sunBAngle - Math.PI/2) * 300, sunBElev * 340, -220);
+sunMeshB.visible = sunBElev > -0.1;
+sunMeshB.getWorldPosition(sunLightB.position);
+const sunBStr = Math.max(0, sunBElev);
+sunLightB.intensity = sunBStr * 0.75;
+sunLightB.color.setRGB(1.0, 0.92 + sunBStr*0.08, 0.7 + sunBStr*0.3);
+sunMeshB.material.color.setRGB(1, 0.92+sunBStr*0.08, 0.7+sunBStr*0.25);
+
+// ── Ambient, sky, fog, stars, bio ──
+ambLight.intensity = 0.18 + dayF * 0.38;
+
+const sc = skyColor(dayF);
+skyMat.color.copy(sc);
+const targetFogColor = sc.clone().lerp(C_NIGHT, 0.5);
+scene.fog.color.lerp(targetFogColor, 0.08);
+scene.fog.far = BASE_FOG_FAR;
+scene.fog.near = 60;
+starMat.opacity = Math.max(0, 1 - dayF * 3);
+
+const bioStr = Math.max(0.25, 1 - dayF * 1.5);
+for (const entry of bioMaterials) {
+entry.mat.emissive.copy(entry.color).multiplyScalar(bioStr);
+if (entry.baseEmissive) {
+entry.mat.emissive.r = Math.max(entry.mat.emissive.r, entry.baseEmissive.r);
+entry.mat.emissive.g = Math.max(entry.mat.emissive.g, entry.baseEmissive.g);
+entry.mat.emissive.b = Math.max(entry.mat.emissive.b, entry.baseEmissive.b);
+}
+}
+
+// ── HUD clock ──
+const hr = Math.floor(h), mn = Math.floor((h - hr) * 60);
+timeEl.textContent = String(hr).padStart(2,'0') + ':' + String(mn).padStart(2,'0');
+phaseEl.textContent = phaseName;
+}
+
+// ── Water System ───────────────────────────────────────────────
+const waterSize = MOBILE ? 300 : 500;
+const waterSegs = MOBILE ? 50 : 100;
+const waterGeo = new THREE.PlaneGeometry(waterSize, waterSize, waterSegs, waterSegs);
+waterGeo.rotateX(-Math.PI / 2);
+
+const waterMat = new THREE.ShaderMaterial({
+uniforms: {
+uTime: { value: 0 },
+uNightFactor: { value: 0 },
+uStormIntensity: { value: 0 },
+uFogColor: { value: new THREE.Color(0x06000f) },
+uFogNear: { value: 60 },
+uFogFar: { value: BASE_FOG_FAR }
+},
+vertexShader: `
+uniform float uTime;
+varying float vWaveHeight;
+varying float vFogDepth;
+varying vec3 vWorldPos;
+void main() {
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  float w = sin(wp.x * 0.15 + uTime * 0.6) * 0.4;
+  w += sin(wp.z * 0.2 + uTime * 0.9) * 0.3;
+  w += cos((wp.x + wp.z) * 0.1 + uTime * 0.4) * 0.25;
+  w += sin(wp.x * 0.4 + wp.z * 0.3 + uTime * 1.5) * 0.1;
+  vec3 pos = position;
+  pos.y += w;
+  vWaveHeight = w;
+  vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
+  vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+  vFogDepth = -mvPosition.z;
+  gl_Position = projectionMatrix * mvPosition;
+}
+`,
+fragmentShader: `
+uniform float uTime;
+uniform float uNightFactor;
+uniform float uStormIntensity;
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+varying float vWaveHeight;
+varying float vFogDepth;
+varying vec3 vWorldPos;
+void main() {
+  vec3 deepCol = vec3(0.06, 0.02, 0.18);
+  vec3 shallowCol = vec3(0.02, 0.22, 0.28);
+  vec3 col = mix(deepCol, shallowCol, clamp(vWaveHeight * 1.5 + 0.5, 0.0, 1.0));
+  float shimmer = sin(vWorldPos.x * 0.3 + uTime * 0.7) * sin(vWorldPos.z * 0.25 + uTime * 0.5);
+  shimmer = shimmer * shimmer;
+  col += vec3(0.1, 0.4, 0.5) * shimmer * (0.3 + uNightFactor * 0.7);
+  col += vec3(0.08, 0.15, 0.18) * max(0.0, vWaveHeight * 0.8);
+  float ripple = sin(vWorldPos.x * 2.5 + uTime * 4.0) * sin(vWorldPos.z * 2.5 + uTime * 3.5);
+  col += vec3(0.05, 0.12, 0.15) * ripple * ripple * uStormIntensity;
+  float fogFactor = smoothstep(uFogNear, uFogFar, vFogDepth);
+  col = mix(col, uFogColor, fogFactor);
+  float alpha = 0.55 + shimmer * 0.15 - fogFactor * 0.3;
+  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85));
+}
+`,
+transparent: true,
+side: THREE.DoubleSide,
+depthWrite: false
+});
+
+const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+waterMesh.position.y = WATER_LEVEL;
+waterMesh.renderOrder = 999;
+scene.add(waterMesh);
+
+// ── Underwater Particles ───────────────────────────────────────
+const UW_COUNT = MOBILE ? 80 : 200;
+const uwGeo = new THREE.BufferGeometry();
+const uwPos = new Float32Array(UW_COUNT * 3);
+const uwDrift = new Float32Array(UW_COUNT * 3);
+for (let i = 0; i < UW_COUNT; i++) {
+uwPos[i*3] = (Math.random()-0.5)*30;
+uwPos[i*3+1] = (Math.random()-0.5)*15;
+uwPos[i*3+2] = (Math.random()-0.5)*30;
+uwDrift[i*3] = (Math.random()-0.5)*0.3;
+uwDrift[i*3+1] = 0.1 + Math.random()*0.2;
+uwDrift[i*3+2] = (Math.random()-0.5)*0.3;
+}
+uwGeo.setAttribute('position', new THREE.Float32BufferAttribute(uwPos, 3));
+const uwMat = new THREE.PointsMaterial({
+color: 0x44ddcc, size: MOBILE ? 0.12 : 0.18,
+transparent: true, opacity: 0.55, sizeAttenuation: true
+});
+const uwParticles = new THREE.Points(uwGeo, uwMat);
+uwParticles.visible = false;
+scene.add(uwParticles);
+
+// ── Storm System ───────────────────────────────────────────────
+const storms = [];
+const MAX_STORMS = 3;
+let stormTimer = 10 + Math.random() * 20;
+const stormDarkColor = new THREE.Color(0x020008);
+
+function spawnStorm() {
+const angle = Math.random() * Math.PI * 2;
+const dist = 30 + Math.random() * 120;
+storms.push({
+x: camera.position.x + Math.cos(angle) * dist,
+z: camera.position.z + Math.sin(angle) * dist,
+radius: 35 + Math.random() * 45,
+intensity: 0.4 + Math.random() * 0.6,
+lifetime: 25 + Math.random() * 35,
+age: 0
+});
+}
+
+function updateStorms(dt) {
+for (let i = storms.length - 1; i >= 0; i--) {
+storms[i].age += dt;
+if (storms[i].age >= storms[i].lifetime) storms.splice(i, 1);
+}
+stormTimer -= dt;
+if (stormTimer <= 0) {
+if (storms.length < MAX_STORMS && Math.random() < 0.6) spawnStorm();
+stormTimer = 15 + Math.random() * 25;
+}
+}
+
+function getStormIntensity(x, z) {
+let maxI = 0;
+for (const s of storms) {
+const dx = x - s.x, dz = z - s.z;
+const dist = Math.sqrt(dx*dx + dz*dz);
+if (dist < s.radius) {
+const edgeFade = 1 - dist / s.radius;
+const timeFade = Math.min(1, s.age / 3, (s.lifetime - s.age) / 4);
+maxI = Math.max(maxI, edgeFade * timeFade * s.intensity);
+}
+}
+return maxI;
+}
+
+// ── Rain System ────────────────────────────────────────────────
+const RAIN_COUNT = MOBILE ? 1000 : 2500;
+const rainGeo = new THREE.BufferGeometry();
+const rainPositions = new Float32Array(RAIN_COUNT * 3);
+const rainSpeeds = new Float32Array(RAIN_COUNT);
+for (let i = 0; i < RAIN_COUNT; i++) {
+rainPositions[i*3] = 0;
+rainPositions[i*3+1] = -999;
+rainPositions[i*3+2] = 0;
+rainSpeeds[i] = 0.5 + Math.random();
+}
+rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(rainPositions, 3));
+const rainMat = new THREE.PointsMaterial({
+color: 0x8877cc, size: MOBILE ? 0.15 : 0.2,
+transparent: true, opacity: 0, sizeAttenuation: true
+});
+const rainMesh = new THREE.Points(rainGeo, rainMat);
+rainMesh.visible = false;
+scene.add(rainMesh);
+
+function updateRain(dt) {
+const si = getStormIntensity(camera.position.x, camera.position.z);
+if (si < 0.01) { rainMesh.visible = false; return; }
+rainMesh.visible = true;
+rainMat.opacity = si * 0.45;
+const rp = rainGeo.attributes.position.array;
+for (let i = 0; i < RAIN_COUNT; i++) {
+const i3 = i * 3;
+rp[i3+1] -= (10 + rainSpeeds[i] * 8) * dt;
+if (rp[i3+1] < camera.position.y - 15) {
+const a = Math.random() * Math.PI * 2;
+const d = Math.random() * 35;
+rp[i3] = camera.position.x + Math.cos(a) * d;
+rp[i3+1] = camera.position.y + 12 + Math.random() * 18;
+rp[i3+2] = camera.position.z + Math.sin(a) * d;
+rainSpeeds[i] = 0.5 + Math.random();
+}
+}
+rainGeo.attributes.position.needsUpdate = true;
+}
+
+// ── Lightning System ──────────────────────────────────────────────
+let lightningTimer = 5 + Math.random() * 10; // seconds until next strike
+let lightningFlashFrames = 0; // frames remaining in flash
+let lightningStoredAmbient = 0; // stored ambient intensity before flash
+const lightningStoredFogColor = new THREE.Color();
+
+function updateLightning(dt) {
+  const stormI = getStormIntensity(camera.position.x, camera.position.z);
+
+  // Only trigger lightning when storm intensity is significant
+  if (stormI > 0.3) {
+    lightningTimer -= dt;
+    if (lightningTimer <= 0) {
+      // Trigger a flash
+      lightningFlashFrames = 3; // flash lasts ~3 frames (about 50-100ms)
+      lightningStoredAmbient = ambLight.intensity;
+      lightningStoredFogColor.copy(scene.fog.color);
+      lightningTimer = 5 + Math.random() * 10; // next strike in 5-15 seconds
+    }
+  } else {
+    // Reset timer when not in storm
+    lightningTimer = 5 + Math.random() * 10;
+  }
+
+  // Apply flash effect
+  if (lightningFlashFrames > 0) {
+    // Dramatic ambient boost
+    ambLight.intensity = lightningStoredAmbient * (3 + Math.random() * 2);
+    // Flash fog toward white
+    scene.fog.color.lerp(new THREE.Color(0.7, 0.65, 0.8), 0.6);
+    lightningFlashFrames--;
+    if (lightningFlashFrames <= 0) {
+      // Restore normal values (they will be overwritten by normal update anyway,
+      // but restore immediately for a clean pop-back)
+      ambLight.intensity = lightningStoredAmbient;
+      scene.fog.color.copy(lightningStoredFogColor);
+    }
+  }
+}
+
+// ── Spore Bloom System ────────────────────────────────────────────
+const SPORE_COUNT = MOBILE ? 200 : 400;
+let sporeBloomTimer = 120 + Math.random() * 120; // 2-4 minutes until first bloom
+let sporeBloomActive = false;
+let sporeBloomAge = 0;
+let sporeBloomDuration = 0;
+const sporeGeo = new THREE.BufferGeometry();
+const sporePositions = new Float32Array(SPORE_COUNT * 3);
+const sporeColors = new Float32Array(SPORE_COUNT * 3);
+const sporeDrifts = new Float32Array(SPORE_COUNT * 3);
+for (let i = 0; i < SPORE_COUNT; i++) {
+  // Colors: alternate gold and pale green
+  if (i % 2 === 0) {
+    sporeColors[i*3] = 0.9; sporeColors[i*3+1] = 0.75; sporeColors[i*3+2] = 0.2;
+  } else {
+    sporeColors[i*3] = 0.5; sporeColors[i*3+1] = 0.9; sporeColors[i*3+2] = 0.4;
+  }
+  sporeDrifts[i*3] = (Math.random() - 0.5) * 0.4;
+  sporeDrifts[i*3+1] = 0.3 + Math.random() * 0.5; // upward drift
+  sporeDrifts[i*3+2] = (Math.random() - 0.5) * 0.4;
+}
+sporeGeo.setAttribute('position', new THREE.Float32BufferAttribute(sporePositions, 3));
+sporeGeo.setAttribute('color', new THREE.Float32BufferAttribute(sporeColors, 3));
+const sporeMat = new THREE.PointsMaterial({
+  size: MOBILE ? 0.15 : 0.22,
+  transparent: true, opacity: 0,
+  sizeAttenuation: true, vertexColors: true
+});
+const sporeMesh = new THREE.Points(sporeGeo, sporeMat);
+sporeMesh.visible = false;
+scene.add(sporeMesh);
+
+function startSporeBloom() {
+  sporeBloomActive = true;
+  sporeBloomAge = 0;
+  sporeBloomDuration = 20 + Math.random() * 10; // 20-30 seconds
+  sporeMesh.visible = true;
+  // Scatter particles around player
+  const sp = sporeGeo.attributes.position.array;
+  for (let i = 0; i < SPORE_COUNT; i++) {
+    sp[i*3] = (Math.random() - 0.5) * 30;
+    sp[i*3+1] = (Math.random() - 0.5) * 5;
+    sp[i*3+2] = (Math.random() - 0.5) * 30;
+  }
+  sporeGeo.attributes.position.needsUpdate = true;
+}
+
+function updateSporeBloom(dt) {
+  if (!sporeBloomActive) {
+    sporeBloomTimer -= dt;
+    if (sporeBloomTimer <= 0) {
+      startSporeBloom();
+      sporeBloomTimer = 120 + Math.random() * 120; // next bloom in 2-4 min
+    }
+    return;
+  }
+
+  sporeBloomAge += dt;
+  if (sporeBloomAge >= sporeBloomDuration) {
+    sporeBloomActive = false;
+    sporeMesh.visible = false;
+    sporeMat.opacity = 0;
+    return;
+  }
+
+  // Fade in/out
+  const fadeIn = Math.min(1, sporeBloomAge / 3); // 3 second fade in
+  const fadeOut = Math.min(1, (sporeBloomDuration - sporeBloomAge) / 4); // 4 second fade out
+  sporeMat.opacity = fadeIn * fadeOut * 0.65;
+
+  // Position particles relative to camera and drift upward
+  sporeMesh.position.copy(camera.position);
+  sporeMesh.position.y -= 2; // start slightly below eye level
+
+  const sp = sporeGeo.attributes.position.array;
+  for (let i = 0; i < SPORE_COUNT; i++) {
+    const i3 = i * 3;
+    sp[i3] += sporeDrifts[i3] * dt;
+    sp[i3+1] += sporeDrifts[i3+1] * dt;
+    sp[i3+2] += sporeDrifts[i3+2] * dt;
+    // Reset particles that drift too high
+    if (sp[i3+1] > 15) {
+      sp[i3] = (Math.random() - 0.5) * 30;
+      sp[i3+1] = -3 + Math.random() * 2;
+      sp[i3+2] = (Math.random() - 0.5) * 30;
+    }
+    // Wrap horizontal
+    if (Math.abs(sp[i3]) > 18) sp[i3] = -sp[i3] * 0.5;
+    if (Math.abs(sp[i3+2]) > 18) sp[i3+2] = -sp[i3+2] * 0.5;
+  }
+  sporeGeo.attributes.position.needsUpdate = true;
+}
+
+// ── Place camera on terrain ────────────────────────────────────
+camera.position.set(0, getHeight(0, 0) + 2.5, 0);
+updateChunks();
+
+// ── Inventory System ──────────────────────────────────────────
+const inventory = [null, null, null, null, null, null]; // 6 slots
+let activeSlot = 0;
+const hotbar = document.getElementById('hotbar');
+const hotbarSlots = hotbar.querySelectorAll('.hotbar-slot');
+const pickupNotif = document.getElementById('pickup-notification');
+let pickupNotifTimer = 0;
+
+function updateHotbarUI() {
+  hotbarSlots.forEach((slot, i) => {
+    const item = inventory[i];
+    const icon = slot.querySelector('.hotbar-icon');
+    const label = slot.querySelector('.hotbar-label');
+    slot.classList.toggle('active', i === activeSlot);
+    slot.classList.toggle('empty', !item);
+    icon.textContent = item ? item.icon : '';
+    icon.style.opacity = (item && item.active) ? '1' : '0.4';
+    label.textContent = item ? item.name : '';
+  });
+}
+
+function addToInventory(item) {
+  const emptySlot = inventory.indexOf(null);
+  if (emptySlot === -1) return false; // full
+  inventory[emptySlot] = item;
+  updateHotbarUI();
+  showPickupNotification(item.name + ' acquired');
+  return true;
+}
+
+function showPickupNotification(text) {
+  pickupNotif.textContent = text;
+  pickupNotif.style.opacity = '1';
+  pickupNotifTimer = 2.5; // seconds
+}
+
+function selectSlot(i) {
+  // Deactivate current item if it has an onDeactivate
+  const currentItem = inventory[activeSlot];
+  if (currentItem && currentItem.active && currentItem.onDeactivate) {
+    currentItem.onDeactivate();
+    currentItem.active = false;
+  }
+  activeSlot = i;
+  updateHotbarUI();
+}
+
+function useActiveItem() {
+  const item = inventory[activeSlot];
+  if (!item || !item.onUse) return;
+  item.onUse();
+  updateHotbarUI();
+}
+
+// Keyboard: number keys to select, F to use
+document.addEventListener('keydown', e => {
+  if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+    selectSlot(parseInt(e.code.charAt(5)) - 1);
+  }
+  if (e.code === 'KeyF') useActiveItem();
+});
+
+// Touch: tap slots to select, tap active slot again to use
+hotbarSlots.forEach((slot, i) => {
+  slot.addEventListener('click', e => {
+    e.stopPropagation();
+    if (activeSlot === i && inventory[i]) useActiveItem();
+    else selectSlot(i);
+  });
+  slot.addEventListener('touchend', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (activeSlot === i && inventory[i]) useActiveItem();
+    else selectSlot(i);
+  }, { passive: false });
+});
+
+updateHotbarUI();
+
+// ── Locator Item Definition ───────────────────────────────────
+const locatorTargets = [
+  { name: 'Ancient Signal', x: 150, z: 170, color: 0x44ff88 },
+];
+let currentLocatorTarget = 0;
+let locatorActive = false;
+
+// 3D holographic arrow — extruded chevron with tail, clear directionality
+const arrowGroup = new THREE.Group();
+const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.55, fog: false });
+const arrowMat2 = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.25, fog: false });
+
+// Build a 3D arrow: chevron head + rectangular tail, extruded vertically
+// Points along +Z in local space
+const arrGeo = new THREE.BufferGeometry();
+const h = 0.4; // half-height (extrusion thickness)
+// Chevron head vertices (top and bottom faces)
+// Top face (y = +h)
+// Bottom face (y = -h)
+const v = [
+  // -- TOP face --
+   0,    h,  2.0,   // 0: tip
+  -1.2,  h,  0.0,   // 1: left wing
+  -0.3,  h,  0.3,   // 2: left inner
+  -0.3,  h, -1.5,   // 3: tail left
+   0.3,  h, -1.5,   // 4: tail right
+   0.3,  h,  0.3,   // 5: right inner
+   1.2,  h,  0.0,   // 6: right wing
+  // -- BOTTOM face --
+   0,   -h,  2.0,   // 7
+  -1.2, -h,  0.0,   // 8
+  -0.3, -h,  0.3,   // 9
+  -0.3, -h, -1.5,   // 10
+   0.3, -h, -1.5,   // 11
+   0.3, -h,  0.3,   // 12
+   1.2, -h,  0.0,   // 13
+];
+const positions = new Float32Array(v.flat());
+// Faces (triangles)
+const indices = [
+  // Top face (chevron + tail)
+  0,2,1, 0,5,2, 0,6,5, 2,5,4, 2,4,3,
+  // Bottom face (reversed winding)
+  7,8,9, 7,9,12, 7,12,13, 9,11,12, 9,10,11,
+  // Side faces - left wing edge
+  0,1,8, 0,8,7,
+  // Left wing to inner
+  1,2,9, 1,9,8,
+  // Left inner down to tail
+  2,3,10, 2,10,9,
+  // Tail bottom
+  3,4,11, 3,11,10,
+  // Tail right up to inner
+  4,5,12, 4,12,11,
+  // Right inner to wing
+  5,6,13, 5,13,12,
+  // Right wing edge
+  6,0,7, 6,7,13,
+];
+arrGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+arrGeo.setIndex(indices);
+arrGeo.computeVertexNormals();
+
+const arrowMesh = new THREE.Mesh(arrGeo, arrowMat);
+arrowGroup.add(arrowMesh);
+
+// Outer glow shell (slightly larger, more transparent)
+const arrowGlow = new THREE.Mesh(arrGeo, arrowMat2);
+arrowGlow.scale.set(1.25, 1.5, 1.25);
+arrowGroup.add(arrowGlow);
+
+arrowGroup.visible = false;
+scene.add(arrowGroup);
+
+const locatorItem = {
+  name: 'Locator',
+  icon: '\u{1F7E2}',
+  active: false,
+  onUse: function() {
+    if (this.active) {
+      // Toggle off
+      this.active = false;
+      locatorActive = false;
+      arrowGroup.visible = false;
+      showPickupNotification('Locator off');
+      return;
+    }
+    this.active = true;
+    currentLocatorTarget = 0;
+    locatorActive = true;
+    arrowGroup.visible = true;
+    const t = locatorTargets[currentLocatorTarget];
+    arrowMat.color.set(t.color);
+    arrowMat2.color.set(t.color);
+    showPickupNotification('Tracking: ' + t.name);
+  },
+  onDeactivate: function() {
+    this.active = false;
+    locatorActive = false;
+    arrowGroup.visible = false;
+  }
+};
+
+// ── Locator Beacon Pickup Object ──────────────────────────────
+// ── Locator device on the ground with downward light beam ──
+const beaconGroup = new THREE.Group();
+const beaconX = -30, beaconZ = 52;
+const beaconTerrY = getHeight(beaconX, beaconZ);
+beaconGroup.position.set(beaconX, beaconTerrY, beaconZ);
+
+// Device body: Tracking fob (chunky black box with silver edges, red lens)
+const fobBlackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.05, 0.05, 0.07) });
+const fobSilverMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.55, 0.55, 0.6) });
+const fobRedMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.9 });
+// Main black body
+const fobBody = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.12), fobBlackMat);
+fobBody.position.y = 0.175;
+beaconGroup.add(fobBody);
+// Silver top edge/cap
+const fobTopCap = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.13), fobSilverMat);
+fobTopCap.position.y = 0.37;
+beaconGroup.add(fobTopCap);
+// Silver side rails (left and right edges)
+const fobRailL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSilverMat);
+fobRailL.position.set(-0.16, 0.175, 0);
+beaconGroup.add(fobRailL);
+const fobRailR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSilverMat);
+fobRailR.position.set(0.16, 0.175, 0);
+beaconGroup.add(fobRailR);
+// Red glowing lens (circle on front face, upper portion)
+const fobLensRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 16), fobSilverMat);
+fobLensRing.position.set(0, 0.26, 0.061);
+beaconGroup.add(fobLensRing);
+const devTop = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), fobRedMat);
+devTop.position.set(0, 0.26, 0.065);
+beaconGroup.add(devTop);
+// Dark groove/slot below the lens
+const fobSlot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.01), new THREE.MeshBasicMaterial({ color: 0x111115 }));
+fobSlot.position.set(0, 0.12, 0.061);
+beaconGroup.add(fobSlot);
+// Antenna sticking up from top cap
+const fobAntennaMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.08, 0.08, 0.1) });
+const fobAntenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25, 8), fobAntennaMat);
+fobAntenna.position.set(0, 0.525, 0);
+beaconGroup.add(fobAntenna);
+// Ball at end of antenna
+const fobBall = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), fobBlackMat);
+fobBall.position.set(0, 0.67, 0);
+beaconGroup.add(fobBall);
+// Small green dot in center of front face
+const fobDotMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.7 });
+const fobDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), fobDotMat);
+fobDot.position.set(0, 0.175, 0.062);
+beaconGroup.add(fobDot);
+// Dummy for animation loop reference
+const devRing = { rotation: { y: 0 } };
+scene.add(beaconGroup);
+
+// Downward light beam from above, pointing at the device
+const beaconBeamGroup = new THREE.Group();
+beaconBeamGroup.position.set(beaconX, beaconTerrY, beaconZ);
+// Cone of light pointing down
+const beamGeo = new THREE.CylinderGeometry(0.15, 1.5, 12, 16, 1, true);
+const beamMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+beamMesh.position.y = 7; // center of beam
+beaconBeamGroup.add(beamMesh);
+// Brighter inner core
+const beamCoreGeo = new THREE.CylinderGeometry(0.05, 0.4, 12, 12, 1, true);
+const beamCoreMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+const beamCore = new THREE.Mesh(beamCoreGeo, beamCoreMat);
+beamCore.position.y = 7;
+beaconBeamGroup.add(beamCore);
+// Ground glow ring where beam hits
+const groundGlowMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+const groundGlow = new THREE.Mesh(new THREE.RingGeometry(0.2, 1.5, 16), groundGlowMat);
+groundGlow.rotation.x = -Math.PI / 2;
+groundGlow.position.y = 0.05;
+beaconBeamGroup.add(groundGlow);
+scene.add(beaconBeamGroup);
+
+let beaconPickedUp = false;
+
+// ── Ancient Artifact — Open Ruins Complex ────────────────────
+const ARTIFACT_X = 150, ARTIFACT_Z = 170;
+const artifactTerrY = getHeight(ARTIFACT_X, ARTIFACT_Z);
+const artifactGroup = new THREE.Group();
+artifactGroup.position.set(ARTIFACT_X, artifactTerrY, ARTIFACT_Z);
+
+const wallColliders = [];
+const ruinStoneMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.22, 0.17, 0.25), emissive: new THREE.Color(0.02, 0.01, 0.03), emissiveIntensity: 1 });
+const alienAccentMat = new THREE.MeshBasicMaterial({ color: 0x7744cc, transparent: true, opacity: 0.6 });
+const ruinFloorMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.1, 0.07, 0.13) });
+
+// Ground plate
+artifactGroup.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(20,20,0.1,16), ruinFloorMat), {position: new THREE.Vector3(0,0.05,0)}));
+
+// Central platform
+artifactGroup.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(3,3.3,0.8,12), ruinStoneMat), {position: new THREE.Vector3(0,0.4,0)}));
+artifactGroup.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,0.3,8), ruinStoneMat), {position: new THREE.Vector3(0,0.95,0)}));
+
+// Pedestal + crystal
+const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.25,1.5,6), alienAccentMat);
+pedestal.position.set(0,1.85,0); artifactGroup.add(pedestal);
+bioMaterials.push({ mat: alienAccentMat, color: new THREE.Color(0.3,0.15,0.55) });
+const crystalMat2 = new THREE.MeshBasicMaterial({ color: 0x7744cc, transparent: true, opacity: 0.6 });
+const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), crystalMat2);
+crystal.position.set(0,2.75,0); artifactGroup.add(crystal);
+bioMaterials.push({ mat: crystalMat2, color: new THREE.Color(0.4,0.2,0.7) });
+
+// 6 broken columns
+[2.8,1.5,3.0,1.8,2.5,2.0].forEach((ch,i) => {
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,ch,8), ruinStoneMat);
+  const a = (i/6)*Math.PI*2;
+  col.position.set(Math.cos(a)*4.5, ch/2, Math.sin(a)*4.5);
+  artifactGroup.add(col);
+});
+
+// Section A: North wall fragments
+[{x:-2.5,z:-12,w:2,h:3.8},{x:-0.3,z:-12.3,w:2,h:4.2},{x:1.9,z:-12.1,w:2,h:3},{x:4,z:-11.5,w:1.8,h:2.2}].forEach(s => {
+  const w = new THREE.Mesh(new THREE.BoxGeometry(s.w,s.h,0.5), ruinStoneMat);
+  w.position.set(s.x,s.h/2,s.z); artifactGroup.add(w);
+  wallColliders.push({minX:ARTIFACT_X+s.x-s.w/2,maxX:ARTIFACT_X+s.x+s.w/2,minZ:ARTIFACT_Z+s.z-0.25,maxZ:ARTIFACT_Z+s.z+0.25});
+});
+
+// Section B: East columns
+[{z:-3,h:3.5,t:0.08},{z:0,h:4,t:-0.05},{z:3,h:2.5,t:0.1},{z:6,h:3.2,t:-0.08}].forEach(c => {
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,c.h,8), ruinStoneMat);
+  col.position.set(12,c.h/2,c.z); col.rotation.z=c.t; artifactGroup.add(col);
+});
+
+// Section C: South alcove (U-shape)
+[{x:0,z:14,w:8,h:1.5,d:0.5},{x:-3.75,z:11.5,w:0.5,h:1.2,d:5},{x:3.75,z:11.5,w:0.5,h:1,d:5}].forEach(s => {
+  const w = new THREE.Mesh(new THREE.BoxGeometry(s.w,s.h,s.d), ruinStoneMat);
+  w.position.set(s.x,s.h/2,s.z); artifactGroup.add(w);
+  wallColliders.push({minX:ARTIFACT_X+s.x-s.w/2,maxX:ARTIFACT_X+s.x+s.w/2,minZ:ARTIFACT_Z+s.z-s.d/2,maxZ:ARTIFACT_Z+s.z+s.d/2});
+});
+
+// Section D: West sunken area
+artifactGroup.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(8,0.15,6),ruinFloorMat),{position:new THREE.Vector3(-12,-0.5,0)}));
+[{x:-16,z:0,w:0.5,h:1.5,d:6},{x:-12,z:-3,w:8,h:1.5,d:0.5}].forEach(s => {
+  const w = new THREE.Mesh(new THREE.BoxGeometry(s.w,s.h,s.d), ruinStoneMat);
+  w.position.set(s.x,0.25,s.z); artifactGroup.add(w);
+  wallColliders.push({minX:ARTIFACT_X+s.x-s.w/2,maxX:ARTIFACT_X+s.x+s.w/2,minZ:ARTIFACT_Z+s.z-s.d/2,maxZ:ARTIFACT_Z+s.z+s.d/2});
+});
+
+// Section E: Alien monolith with floating ring
+const monolith = new THREE.Mesh(new THREE.BoxGeometry(0.6,5,0.6), ruinStoneMat);
+monolith.position.set(-8,2.5,-10); artifactGroup.add(monolith);
+const monolithRing = new THREE.Mesh(new THREE.TorusGeometry(0.8,0.1,8,16), alienAccentMat);
+monolithRing.position.set(-8,6,-10); monolithRing.rotation.x=Math.PI/2; artifactGroup.add(monolithRing);
+
+// Ramp steps to central platform
+for (let ri=0;ri<4;ri++) {
+  const s = new THREE.Mesh(new THREE.BoxGeometry(4,0.2,1), ruinStoneMat);
+  s.position.set(0,ri*0.2+0.1,4.5+ri); artifactGroup.add(s);
+}
+
+// Scattered debris
+for (let di=0;di<15;di++) {
+  const da=uhash(di*137,di*251)*Math.PI*2, dd=uhash(di*311,di*419)*18, ds=0.2+uhash(di*523,di*617)*0.3;
+  const db = new THREE.Mesh(new THREE.BoxGeometry(ds,ds*0.7,ds*0.8), ruinStoneMat);
+  db.position.set(Math.cos(da)*dd,ds*0.3,Math.sin(da)*dd);
+  db.rotation.set(uhash(di*907,di*1009)*Math.PI,uhash(di*1103,di*1201)*Math.PI,0);
+  artifactGroup.add(db);
+}
+
+scene.add(artifactGroup);
+// ── Wall Collision System ─────────────────────────────────────
+const PLAYER_RADIUS = 0.5;
+function checkWallCollision(newX, newZ) {
+  for (const c of wallColliders) {
+    const closestX = Math.max(c.minX, Math.min(newX, c.maxX));
+    const closestZ = Math.max(c.minZ, Math.min(newZ, c.maxZ));
+    const dx = newX - closestX, dz = newZ - closestZ;
+    if (dx * dx + dz * dz < PLAYER_RADIUS * PLAYER_RADIUS) {
+      return true; // collision
+    }
+  }
+  return false;
+}
+
+// ── Settings State ─────────────────────────────────────────────
+let invertX = true;
+let invertY = true;
+let joystickSide = 'left'; // 'left' or 'right'
+let menuOpen = false;
+
+// ── HUD Position System ────────────────────────────────────────
+const hudPositions = {
+  coords: 'top-left',
+  compass: 'bottom-right',
+  minimap: 'top-left',
+  time: 'bottom-right',
+  fps: 'hidden'
+};
+
+const hudElements = {
+  coords: document.getElementById('coords'),
+  compass: document.getElementById('compass-wrapper'),
+  minimap: document.getElementById('minimap-wrapper'),
+  time: document.getElementById('hud'),
+  fps: document.getElementById('fps')
+};
+
+const hudCorners = {
+  'top-left': document.getElementById('hud-tl'),
+  'top-right': document.getElementById('hud-tr'),
+  'bottom-left': document.getElementById('hud-bl'),
+  'bottom-right': document.getElementById('hud-br')
+};
+
+function updateHudLayout() {
+  // Remove all HUD elements from all corners first
+  for (const corner of Object.values(hudCorners)) {
+    while (corner.firstChild) corner.removeChild(corner.firstChild);
+  }
+  // Place each element in its assigned corner (or hide it)
+  const order = ['coords', 'minimap', 'fps', 'compass', 'time'];
+  for (const key of order) {
+    const el = hudElements[key];
+    const pos = hudPositions[key];
+    if (pos === 'hidden') {
+      el.style.display = 'none';
+    } else {
+      el.style.display = '';
+      if (hudCorners[pos]) {
+        hudCorners[pos].appendChild(el);
+      }
+    }
+  }
+}
+
+// Initialize HUD layout
+updateHudLayout();
+
+// ── Minimap ────────────────────────────────────────────────────
+const minimapCanvas = document.getElementById('minimap-canvas');
+const minimapCtx = minimapCanvas.getContext('2d');
+const MINIMAP_SIZE_SMALL = 120;
+const MINIMAP_RANGE_DEFAULT = 80;
+let minimapRange = MINIMAP_RANGE_DEFAULT; // world units shown in minimap
+let minimapFrame = 0;
+let currentMinimapSize = MINIMAP_SIZE_SMALL;
+
+function updateMinimap() {
+  // Use higher resolution when expanded
+  const sz = minimapExpanded ? Math.min(window.innerWidth, window.innerHeight) - 40 : MINIMAP_SIZE_SMALL;
+  if (sz !== currentMinimapSize) {
+    currentMinimapSize = sz;
+    minimapCanvas.width = sz;
+    minimapCanvas.height = sz;
+  }
+  const px = camera.position.x;
+  const pz = camera.position.z;
+  const step = minimapRange / currentMinimapSize;
+  const imgData = minimapCtx.createImageData(currentMinimapSize, currentMinimapSize);
+  const data = imgData.data;
+
+  const CONTOUR_INTERVAL = 2.5;
+  // Shaded relief: light from upper-left (NW), only when expanded
+  const doShading = minimapExpanded && minimapRange <= 200;
+  // Sun direction vector (NW, elevated 45deg): normalized (-1, 1, -1) → (-0.577, 0.577, -0.577)
+  const sunX = -0.577, sunY = 0.577, sunZ = -0.577;
+
+  for (let my = 0; my < currentMinimapSize; my++) {
+    for (let mx = 0; mx < currentMinimapSize; mx++) {
+      // North-up: top of minimap = negative Z (north)
+      const wx = px + (mx - currentMinimapSize / 2) * step;
+      const wz = pz + (my - currentMinimapSize / 2) * step;
+      const h = getHeight(wx, wz);
+      const idx = (my * currentMinimapSize + mx) * 4;
+
+      let r, g, b;
+      if (h < WATER_LEVEL) {
+        const depth = Math.min(1, (WATER_LEVEL - h) / 8);
+        r = (0.02 + depth * 0.04) * 255;
+        g = (0.15 + depth * 0.07) * 255;
+        b = (0.25 + depth * 0.03) * 255;
+      } else {
+        const bv = getBiomeVal(wx, wz);
+        const [tr, tg, tb] = terrainRGB(h, bv);
+        r = tr * 255;
+        g = tg * 255;
+        b = tb * 255;
+      }
+
+      // Shaded relief: compute surface normal from height differences
+      if (doShading) {
+        const hR = getHeight(wx + step, wz);
+        const hD = getHeight(wx, wz + step);
+        // Surface normal via cross product of tangent vectors
+        // tangent_x = (step, hR - h, 0), tangent_z = (0, hD - h, step)
+        // normal = tangent_x × tangent_z = (step*(hR-h) is wrong, let me use gradient)
+        // Simpler: normal ≈ (-dh/dx, 1, -dh/dz) normalized
+        const dhdx = (hR - h) / step;
+        const dhdz = (hD - h) / step;
+        const nLen = Math.sqrt(dhdx * dhdx + 1 + dhdz * dhdz);
+        const nx = -dhdx / nLen, ny = 1 / nLen, nz = -dhdz / nLen;
+        // Dot product with sun direction
+        let shade = nx * sunX + ny * sunY + nz * sunZ;
+        // Map shade from [-1,1] to brightness multiplier [0.4, 1.6]
+        shade = 0.4 + (shade + 1) * 0.6;
+        r *= shade; g *= shade; b *= shade;
+      }
+
+      // Contour lines
+      let isContour = false;
+      const hBand = Math.floor(h / CONTOUR_INTERVAL);
+      if (mx < currentMinimapSize - 1) {
+        const hRight = getHeight(px + (mx + 1 - currentMinimapSize / 2) * step, wz);
+        if (Math.floor(hRight / CONTOUR_INTERVAL) !== hBand) isContour = true;
+      }
+      if (!isContour && my < currentMinimapSize - 1) {
+        const hBelow = getHeight(wx, pz + (my + 1 - currentMinimapSize / 2) * step);
+        if (Math.floor(hBelow / CONTOUR_INTERVAL) !== hBand) isContour = true;
+      }
+
+      if (isContour) {
+        r *= 0.5; g *= 0.5; b *= 0.5;
+      }
+
+      data[idx]   = Math.floor(r);
+      data[idx+1] = Math.floor(g);
+      data[idx+2] = Math.floor(b);
+      data[idx+3] = 255;
+    }
+  }
+
+  minimapCtx.putImageData(imgData, 0, 0);
+
+  // Player dot and direction indicator
+  const center = currentMinimapSize / 2;
+  const dotR = minimapExpanded ? 5 : 3;
+  const dirLen = minimapExpanded ? 16 : 8;
+  const _fwd = new THREE.Vector3();
+  camera.getWorldDirection(_fwd);
+
+  // Draw player dot in center
+  minimapCtx.fillStyle = 'rgba(255, 200, 100, 0.9)';
+  minimapCtx.beginPath();
+  minimapCtx.arc(center, center, dotR, 0, Math.PI * 2);
+  minimapCtx.fill();
+
+  // Draw direction indicator
+  const dirX = center + _fwd.x * dirLen;
+  const dirY = center + _fwd.z * dirLen;
+  minimapCtx.strokeStyle = 'rgba(255, 200, 100, 0.9)';
+  minimapCtx.lineWidth = minimapExpanded ? 2.5 : 1.5;
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(center, center);
+  minimapCtx.lineTo(dirX, dirY);
+  minimapCtx.stroke();
+
+  // Locator beacon pickup on minimap (cyan diamond, before pickup only)
+  if (!beaconPickedUp) {
+    const step2 = minimapRange / currentMinimapSize;
+    const bmx = (beaconX - camera.position.x) / step2 + center;
+    const bmz = (beaconZ - camera.position.z) / step2 + center;
+    if (bmx >= -5 && bmx < currentMinimapSize+5 && bmz >= -5 && bmz < currentMinimapSize+5) {
+      const ds = minimapExpanded ? 5 : 3;
+      minimapCtx.fillStyle = 'rgba(68, 221, 255, 0.9)';
+      // Draw diamond shape
+      minimapCtx.beginPath();
+      minimapCtx.moveTo(bmx, bmz - ds);
+      minimapCtx.lineTo(bmx + ds, bmz);
+      minimapCtx.lineTo(bmx, bmz + ds);
+      minimapCtx.lineTo(bmx - ds, bmz);
+      minimapCtx.closePath();
+      minimapCtx.fill();
+    }
+  }
+
+  // Locator target dot on minimap
+  if (locatorActive) {
+    const t = locatorTargets[currentLocatorTarget];
+    const step2 = minimapRange / currentMinimapSize;
+    const lmx = (t.x - camera.position.x) / step2 + currentMinimapSize / 2;
+    const lmz = (t.z - camera.position.z) / step2 + currentMinimapSize / 2;
+    if (lmx >= -5 && lmx < currentMinimapSize+5 && lmz >= -5 && lmz < currentMinimapSize+5) {
+      const lc = new THREE.Color(t.color);
+      minimapCtx.fillStyle = `rgb(${Math.floor(lc.r*255)},${Math.floor(lc.g*255)},${Math.floor(lc.b*255)})`;
+      const dotSize = minimapExpanded ? 6 : 4;
+      minimapCtx.beginPath();
+      minimapCtx.arc(lmx, lmz, dotSize, 0, Math.PI * 2);
+      minimapCtx.fill();
+      // Pulsing ring
+      minimapCtx.strokeStyle = minimapCtx.fillStyle;
+      minimapCtx.lineWidth = minimapExpanded ? 2 : 1;
+      const pulseR = dotSize + 3 + Math.sin(Date.now() * 0.004) * 2;
+      minimapCtx.globalAlpha = 0.4;
+      minimapCtx.beginPath();
+      minimapCtx.arc(lmx, lmz, pulseR, 0, Math.PI * 2);
+      minimapCtx.stroke();
+      minimapCtx.globalAlpha = 1;
+    }
+  }
+}
+
+// ── Minimap Expand/Collapse ────────────────────────────────────
+let minimapExpanded = false;
+
+// Create zoom controls (injected into DOM)
+const minimapZoom = document.createElement('div');
+minimapZoom.id = 'minimap-zoom';
+minimapZoom.innerHTML = '<button id="mz-out">−</button><input type="range" id="minimap-zoom-slider" min="0" max="9" value="6"><button id="mz-in">+</button>';
+document.body.appendChild(minimapZoom);
+
+const ZOOM_LEVELS = [500, 400, 300, 200, 160, 120, 80, 60, 40, 25];
+let zoomIdx = 6; // default 80
+
+function updateZoomFromIdx() {
+  minimapRange = ZOOM_LEVELS[zoomIdx];
+  document.getElementById('minimap-zoom-slider').value = zoomIdx;
+}
+
+function positionZoomControls() {
+  const canvas2 = document.getElementById('minimap-canvas');
+  const r = canvas2.getBoundingClientRect();
+  const isLandscape = window.innerWidth > window.innerHeight;
+  minimapZoom.className = isLandscape ? 'zoom-v' : 'zoom-h';
+  if (isLandscape) {
+    // Vertical strip to the right of the map
+    minimapZoom.style.left = (r.right + 10) + 'px';
+    minimapZoom.style.top = r.top + 'px';
+    minimapZoom.style.width = '32px';
+    minimapZoom.style.height = r.height + 'px';
+  } else {
+    // Horizontal strip below the map, aligned to its edges
+    minimapZoom.style.left = r.left + 'px';
+    minimapZoom.style.top = (r.bottom + 8) + 'px';
+    minimapZoom.style.width = r.width + 'px';
+    minimapZoom.style.height = '32px';
+  }
+}
+
+function toggleMinimap() {
+  minimapExpanded = !minimapExpanded;
+  const canvas2 = document.getElementById('minimap-canvas');
+  if (minimapExpanded) {
+    const isLandscape = window.innerWidth > window.innerHeight;
+    const topPad = 60; // clear the top HUD elements
+    const bottomPad = 100; // clear inventory + joystick
+    const sidePad = 20;
+    const availW = window.innerWidth - sidePad * 2 - (isLandscape ? 50 : 0);
+    const availH = window.innerHeight - topPad - bottomPad;
+    const size = Math.min(availW, availH);
+    const mapLeft = (window.innerWidth - size - (isLandscape ? 50 : 0)) / 2;
+    const mapTop = topPad + (availH - size) / 2;
+    canvas2.style.position = 'fixed';
+    canvas2.style.width = size + 'px';
+    canvas2.style.height = size + 'px';
+    canvas2.style.left = mapLeft + 'px';
+    canvas2.style.top = mapTop + 'px';
+    canvas2.style.zIndex = '28';
+    canvas2.style.borderRadius = '10px';
+    minimapZoom.style.display = 'flex';
+    updateZoomFromIdx();
+    requestAnimationFrame(positionZoomControls);
+  } else {
+    canvas2.style.position = '';
+    canvas2.style.width = '120px';
+    canvas2.style.height = '120px';
+    canvas2.style.left = '';
+    canvas2.style.top = '';
+    canvas2.style.zIndex = '';
+    canvas2.style.borderRadius = '6px';
+    minimapZoom.style.display = 'none';
+    // Keep zoom level — don't reset when closing
+  }
+}
+
+// Zoom button handlers
+document.addEventListener('click', function(e) {
+  if (e.target.id === 'mz-in') {
+    e.stopPropagation();
+    if (zoomIdx < ZOOM_LEVELS.length - 1) { zoomIdx++; updateZoomFromIdx(); }
+  } else if (e.target.id === 'mz-out') {
+    e.stopPropagation();
+    if (zoomIdx > 0) { zoomIdx--; updateZoomFromIdx(); }
+  }
+});
+// Slider handler
+document.addEventListener('input', function(e) {
+  if (e.target.id === 'minimap-zoom-slider') {
+    zoomIdx = parseInt(e.target.value);
+    minimapRange = ZOOM_LEVELS[zoomIdx];
+  }
+});
+minimapZoom.addEventListener('touchend', function(e) {
+  e.stopPropagation();
+  if (e.target.id === 'mz-in') { e.preventDefault(); if (zoomIdx < ZOOM_LEVELS.length - 1) { zoomIdx++; updateZoomFromIdx(); } }
+  else if (e.target.id === 'mz-out') { e.preventDefault(); if (zoomIdx > 0) { zoomIdx--; updateZoomFromIdx(); } }
+}, { passive: false });
+minimapZoom.addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: true });
+minimapZoom.addEventListener('touchmove', function(e) { e.stopPropagation(); }, { passive: true });
+
+// Click listener on minimap canvas
+minimapCanvas.addEventListener('click', function(e) {
+  e.stopPropagation();
+  toggleMinimap();
+});
+minimapCanvas.addEventListener('touchend', function(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  toggleMinimap();
+}, { passive: false });
+
+// Prevent touch events on minimap from reaching camera look controls
+minimapCanvas.addEventListener('touchstart', function(e) {
+  if (minimapExpanded) e.stopPropagation();
+}, { passive: true });
+minimapCanvas.addEventListener('touchmove', function(e) {
+  if (minimapExpanded) e.stopPropagation();
+}, { passive: true });
+
+// ── Compass Update ─────────────────────────────────────────────
+const compassEl = document.getElementById('compass');
+
+function updateCompass() {
+  // yaw is the camera rotation around Y axis
+  // Rotate the compass so N always points north in the world
+  const deg = (yaw * 180 / Math.PI);
+  compassEl.style.transform = 'rotate(' + deg + 'deg)';
+}
+
+// ── Input ──────────────────────────────────────────────────────
+const keys = {};
+let yaw = 0, pitch = 0, locked = false, started = false;
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; });
+canvas.addEventListener('click', () => { if (started && !MOBILE && !menuOpen) canvas.requestPointerLock(); });
+document.addEventListener('mousemove', e => {
+if (!locked) return;
+const xMult = invertX ? 1 : -1;
+const yMult = invertY ? 1 : -1;
+yaw += e.movementX * 0.002 * xMult;
+pitch += e.movementY * 0.002 * yMult;
+pitch = Math.max(-1.3, Math.min(1.3, pitch));
+});
+
+let lTouch = null, lTouchId = null;
+canvas.addEventListener('touchstart', e => {
+for (const t of e.changedTouches)
+if (!lTouchId) {
+lTouch = { x: t.clientX, y: t.clientY }; lTouchId = t.identifier;
+}
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+for (const t of e.changedTouches) {
+if (t.identifier !== lTouchId || !lTouch) continue;
+const xMult = invertX ? -1 : 1;
+const yMult = invertY ? -1 : 1;
+yaw += (t.clientX - lTouch.x) * 0.004 * xMult;
+pitch += (t.clientY - lTouch.y) * 0.004 * yMult;
+pitch = Math.max(-1.3, Math.min(1.3, pitch));
+lTouch = { x: t.clientX, y: t.clientY };
+}
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+for (const t of e.changedTouches) if (t.identifier === lTouchId) { lTouch = null; lTouchId = null; }
+}, { passive: true });
+
+const jZone = document.getElementById('joystick-zone');
+const jThumb = document.getElementById('joystick-thumb');
+let jDx = 0, jDz = 0, jTouchId = null, jOrigin = null, jSprinting = false;
+const JR = 37;
+const JR_MAX = 55; // extended range for sprint
+jZone.addEventListener('touchstart', e => {
+e.stopPropagation();
+const t = e.changedTouches[0]; jTouchId = t.identifier;
+const r = jZone.getBoundingClientRect();
+jOrigin = { x: r.left+r.width/2, y: r.top+r.height/2 };
+}, { passive: true });
+jZone.addEventListener('touchmove', e => {
+e.stopPropagation();
+for (const t of e.changedTouches) {
+if (t.identifier !== jTouchId) continue;
+let dx = t.clientX-jOrigin.x, dy = t.clientY-jOrigin.y;
+const d = Math.sqrt(dx*dx+dy*dy);
+// Sprint when pushed beyond normal radius
+jSprinting = d > JR;
+// Clamp thumb visual to extended range (JR_MAX) but normalize jDx/jDz to JR
+let thumbDx = dx, thumbDy = dy;
+if (d > JR_MAX) { thumbDx=dx/d*JR_MAX; thumbDy=dy/d*JR_MAX; }
+// Normalize movement input to -1..1 based on JR
+if (d > JR) { jDx=(dx/d*JR)/JR; jDz=(dy/d*JR)/JR; }
+else { jDx=dx/JR; jDz=dy/JR; }
+jThumb.style.transform = `translate(calc(-50% + ${thumbDx}px),calc(-50% + ${thumbDy}px))`;
+}
+}, { passive: true });
+const jEnd = e => {
+for (const t of e.changedTouches) if (t.identifier === jTouchId) {
+jDx=0; jDz=0; jTouchId=null; jSprinting=false;
+jThumb.style.transform='translate(-50%,-50%)';
+}
+};
+jZone.addEventListener('touchend', jEnd, { passive: true });
+jZone.addEventListener('touchcancel',jEnd, { passive: true });
+
+// ── Movement ───────────────────────────────────────────────────
+const SPEED = 0.13, SPRINT = 2.5;
+const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+function doMove() {
+if (!started) return;
+const terrainH = getHeight(camera.position.x, camera.position.z);
+const isUnderwater = camera.position.y < WATER_LEVEL;
+const isWading = !isUnderwater && terrainH < WATER_LEVEL;
+let speedMult = 1.0;
+if (isUnderwater) speedMult = 0.35;
+else if (isWading) speedMult = 0.65;
+
+const sp = (keys['ShiftLeft']||keys['ShiftRight']||jSprinting) ? SPRINT : 1;
+let fwd=0, right=0;
+if (keys['KeyW']||keys['ArrowUp']) fwd++;
+if (keys['KeyS']||keys['ArrowDown']) fwd--;
+if (keys['KeyA']||keys['ArrowLeft']) right--;
+if (keys['KeyD']||keys['ArrowRight']) right++;
+fwd -= jDz;
+right += jDx;
+const spd = SPEED * sp * speedMult;
+const forward = new THREE.Vector3();
+camera.getWorldDirection(forward);
+forward.y = 0;
+forward.normalize();
+const rightVec = new THREE.Vector3();
+rightVec.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+// Try to move, but check wall collision first
+const newX = camera.position.x + (forward.x * fwd + rightVec.x * right) * spd;
+const newZ = camera.position.z + (forward.z * fwd + rightVec.z * right) * spd;
+// Slide along walls: try X and Z independently
+if (!checkWallCollision(newX, camera.position.z)) camera.position.x = newX;
+if (!checkWallCollision(camera.position.x, newZ)) camera.position.z = newZ;
+// Use ruins floor height if inside the ruins footprint (within 20 units of artifact center)
+let ty = getHeight(camera.position.x, camera.position.z) + 2.5;
+const ruinDx = camera.position.x - ARTIFACT_X;
+const ruinDz = camera.position.z - ARTIFACT_Z;
+if (ruinDx * ruinDx + ruinDz * ruinDz < 20 * 20) {
+  ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
+}
+const lerpFactor = isUnderwater ? 0.1 : 0.2;
+camera.position.y += (ty - camera.position.y) * lerpFactor;
+}
+
+// ── Menu / Settings ────────────────────────────────────────────
+const menuBtn = document.getElementById('menu-btn');
+const settingsOverlay = document.getElementById('settings-overlay');
+const settingsClose = document.getElementById('settings-close');
+const invertXCheck = document.getElementById('invert-x');
+const invertYCheck = document.getElementById('invert-y');
+const joyLeftBtn = document.getElementById('joy-left');
+const joyRightBtn = document.getElementById('joy-right');
+const joystickSection = document.getElementById('joystick-section');
+
+// Show joystick section only on mobile
+if (MOBILE) joystickSection.style.display = '';
+
+function openMenu() {
+menuOpen = true;
+settingsOverlay.style.display = 'flex';
+// Release pointer lock on desktop
+if (!MOBILE && document.pointerLockElement) {
+document.exitPointerLock();
+}
+}
+
+function closeMenu() {
+menuOpen = false;
+settingsOverlay.style.display = 'none';
+// Re-acquire pointer lock on desktop
+if (!MOBILE && started) {
+canvas.requestPointerLock();
+}
+}
+
+menuBtn.addEventListener('click', e => {
+e.stopPropagation();
+if (menuOpen) closeMenu(); else openMenu();
+});
+menuBtn.addEventListener('touchend', e => {
+e.stopPropagation();
+e.preventDefault();
+if (menuOpen) closeMenu(); else openMenu();
+}, { passive: false });
+
+settingsClose.addEventListener('click', e => {
+e.stopPropagation();
+closeMenu();
+});
+
+// Close menu when clicking overlay background (not the panel)
+settingsOverlay.addEventListener('click', e => {
+if (e.target === settingsOverlay) closeMenu();
+});
+// Prevent touches on settings panel from reaching the canvas
+settingsOverlay.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: true });
+settingsOverlay.addEventListener('touchmove', e => { e.stopPropagation(); }, { passive: true });
+settingsOverlay.addEventListener('touchend', e => { e.stopPropagation(); }, { passive: true });
+
+// Invert toggles
+invertXCheck.addEventListener('change', () => { invertX = invertXCheck.checked; });
+invertYCheck.addEventListener('change', () => { invertY = invertYCheck.checked; });
+
+// Joystick position toggle
+function setJoystickSide(side) {
+joystickSide = side;
+if (side === 'left') {
+jZone.style.left = '24px';
+jZone.style.right = 'auto';
+joyLeftBtn.classList.add('active');
+joyRightBtn.classList.remove('active');
+} else {
+jZone.style.right = '24px';
+jZone.style.left = 'auto';
+joyRightBtn.classList.add('active');
+joyLeftBtn.classList.remove('active');
+}
+}
+joyLeftBtn.addEventListener('click', () => setJoystickSide('left'));
+joyRightBtn.addEventListener('click', () => setJoystickSide('right'));
+
+// Sound sliders (placeholder -- just update display values)
+document.getElementById('snd-ambient').addEventListener('input', function() {
+document.getElementById('snd-ambient-val').textContent = this.value;
+});
+document.getElementById('snd-music').addEventListener('input', function() {
+document.getElementById('snd-music-val').textContent = this.value;
+});
+document.getElementById('snd-fx').addEventListener('input', function() {
+document.getElementById('snd-fx-val').textContent = this.value;
+});
+
+// ── HUD Position Settings ──────────────────────────────────────
+const hudPosSelects = {
+  coords: document.getElementById('hud-pos-coords'),
+  compass: document.getElementById('hud-pos-compass'),
+  minimap: document.getElementById('hud-pos-minimap'),
+  time: document.getElementById('hud-pos-time'),
+  fps: document.getElementById('hud-pos-fps')
+};
+
+for (const [key, sel] of Object.entries(hudPosSelects)) {
+  sel.addEventListener('change', function() {
+    hudPositions[key] = this.value;
+    updateHudLayout();
+  });
+}
+
+// Close menu on Escape key
+document.addEventListener('keydown', e => {
+if (e.code === 'Escape' && menuOpen) {
+closeMenu();
+e.preventDefault();
+e.stopPropagation();
+}
+});
+
+// ── Creature Systems ──────────────────────────────────────────────
+
+// ── 1. Glowing Air Jellyfish ──────────────────────────────────────
+const JELLY_COUNT = MOBILE ? 2 : 4;
+const JELLY_SPAWN_R = 80;
+const JELLY_DESPAWN_R = 120;
+const jellyfish = [];
+
+function createJellyfish(px, pz) {
+  const group = new THREE.Group();
+
+  // Dome (top half of squashed sphere)
+  const domeRadius = 1.5 + Math.random() * 1.5;
+  const domeMat = new THREE.MeshLambertMaterial({
+    color: new THREE.Color(0.45, 0.25, 0.75),
+    transparent: true, opacity: 0.65,
+    emissive: new THREE.Color(0.05, 0.15, 0.2), emissiveIntensity: 1
+  });
+  bioMaterials.push({ mat: domeMat, color: new THREE.Color(0.25, 0.6, 0.8), baseEmissive: new THREE.Color(0.05, 0.15, 0.2) });
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(domeRadius, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    domeMat
+  );
+  dome.scale.y = 0.6;
+  group.add(dome);
+
+  // Tendrils
+  const tendrilCount = 3 + Math.floor(Math.random() * 3);
+  const tendrils = [];
+  for (let i = 0; i < tendrilCount; i++) {
+    const len = 2 + Math.random() * 2;
+    const tMat = new THREE.MeshLambertMaterial({
+      color: new THREE.Color(0.35, 0.2, 0.65),
+      transparent: true, opacity: 0.45,
+      emissive: new THREE.Color(0.03, 0.1, 0.15), emissiveIntensity: 1
+    });
+    bioMaterials.push({ mat: tMat, color: new THREE.Color(0.15, 0.55, 0.7), baseEmissive: new THREE.Color(0.03, 0.1, 0.15) });
+    const tendril = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.015, len, 3),
+      tMat
+    );
+    const angle = (i / tendrilCount) * Math.PI * 2;
+    const rad = domeRadius * 0.4;
+    tendril.position.set(Math.cos(angle) * rad, -len * 0.5 - domeRadius * 0.2, Math.sin(angle) * rad);
+    group.add(tendril);
+    tendrils.push({ mesh: tendril, baseRotX: 0, baseRotZ: 0, phase: Math.random() * Math.PI * 2 });
+  }
+
+  const terrainH = getHeight(px, pz);
+  const floatY = Math.max(terrainH + 5, WATER_LEVEL + 3) + 10 + Math.random() * 15;
+  group.position.set(px, floatY, pz);
+  scene.add(group);
+
+  return {
+    group, domeMat, tendrils,
+    vx: (Math.random() - 0.5) * 1.2,
+    vz: (Math.random() - 0.5) * 1.2,
+    speed: 0.3 + Math.random() * 0.5,
+    bobPhase: Math.random() * Math.PI * 2,
+    bobPeriod: 3 + Math.random() * 2,
+    glowPhase: Math.random() * Math.PI * 2,
+    dirTimer: 3 + Math.random() * 5,
+    baseY: floatY
+  };
+}
+
+function updateJellyfish(dt, now) {
+  const camX = camera.position.x, camZ = camera.position.z;
+
+  // Remove jellyfish too far away
+  for (let i = jellyfish.length - 1; i >= 0; i--) {
+    const j = jellyfish[i];
+    const dx = j.group.position.x - camX, dz = j.group.position.z - camZ;
+    if (dx * dx + dz * dz > JELLY_DESPAWN_R * JELLY_DESPAWN_R) {
+      scene.remove(j.group);
+      j.group.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          const idx = bioMaterials.findIndex(b => b.mat === o.material);
+          if (idx !== -1) bioMaterials.splice(idx, 1);
+          o.material.dispose();
+        }
+      });
+      jellyfish.splice(i, 1);
+    }
+  }
+
+  // Spawn new if needed
+  while (jellyfish.length < JELLY_COUNT) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 30 + Math.random() * (JELLY_SPAWN_R - 30);
+    jellyfish.push(createJellyfish(
+      camX + Math.cos(angle) * dist,
+      camZ + Math.sin(angle) * dist
+    ));
+  }
+
+  // Update each jellyfish
+  const t = now * 0.001;
+
+  // Day/night behavior: jellyfish float HIGH during day, LOW at night
+  // Day (currentDayF=1): height above terrain = 15-25 (high), speed slow
+  // Night (currentDayF=0): height above terrain = 5-12 (low), speed slightly faster, glow brighter
+  const jellyHeightLow = 5 + 7 * currentDayF;    // night: 5, day: 12  (min above terrain)
+  const jellyHeightHigh = 12 + 13 * currentDayF;  // night: 12, day: 25 (max above terrain)
+  const jellySpeedMult = 1.0 + (1 - currentDayF) * 0.4; // night: 1.4x, day: 1.0x
+
+  for (const j of jellyfish) {
+    // Direction change
+    j.dirTimer -= dt;
+    if (j.dirTimer <= 0) {
+      j.vx = (Math.random() - 0.5) * 1.2;
+      j.vz = (Math.random() - 0.5) * 1.2;
+      j.dirTimer = 3 + Math.random() * 5;
+    }
+
+    // Drift (speed modulated by time of day)
+    j.group.position.x += j.vx * j.speed * jellySpeedMult * dt;
+    j.group.position.z += j.vz * j.speed * jellySpeedMult * dt;
+
+    // Bob with day/night height variation
+    j.bobPhase += dt;
+    const bobOffset = Math.sin(j.bobPhase * (Math.PI * 2 / j.bobPeriod)) * 1.0;
+    const terrainH = getHeight(j.group.position.x, j.group.position.z);
+    const targetBaseY = Math.max(terrainH + jellyHeightLow, WATER_LEVEL + 3) + (jellyHeightHigh - jellyHeightLow) * 0.5;
+    // Smoothly lerp to target height
+    j.baseY += (targetBaseY - j.baseY) * dt * 0.5;
+    j.group.position.y = j.baseY + bobOffset;
+
+    // Tendril sway
+    for (const tr of j.tendrils) {
+      tr.phase += dt * 1.2;
+      tr.mesh.rotation.x = Math.sin(tr.phase) * 0.15;
+      tr.mesh.rotation.z = Math.cos(tr.phase * 0.7) * 0.12;
+    }
+
+    // Pulsing glow: brighter at night
+    j.glowPhase += dt;
+    const jellyBaseOpacity = 0.55 + (1 - currentDayF) * 0.2;
+    j.domeMat.opacity = jellyBaseOpacity + Math.sin(j.glowPhase * 1.5) * 0.12;
+  }
+}
+
+// ── 2. Firefly Fish (schooling underwater fish) ──────────────────────
+const SCHOOL_COUNT = MOBILE ? 2 : 4; // number of schools
+const FISH_PER_SCHOOL = MOBILE ? 8 : 14;
+const SCHOOL_SPAWN_R = 60;
+const schools = [];
+
+let schoolSpawnCooldown = 0;
+
+function createSchool(cx, cz) {
+  const group = new THREE.Group();
+  // Find a spot with water
+  let sx, sz, th, found = false;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 20 + Math.random() * (SCHOOL_SPAWN_R - 20);
+    sx = cx + Math.cos(ang) * dist;
+    sz = cz + Math.sin(ang) * dist;
+    th = getHeight(sx, sz);
+    if (th < WATER_LEVEL - 1.5) { found = true; break; }
+  }
+  if (!found) return null; // no water nearby, skip
+  const waterDepth = WATER_LEVEL - th;
+  const schoolY = th + Math.min(waterDepth * 0.4, 2) + 0.5;
+  group.position.set(sx, schoolY, sz);
+
+  const isPurple = Math.random() > 0.5;
+  const baseColor = isPurple ? new THREE.Color(0.5, 0.08, 0.7) : new THREE.Color(0.06, 0.55, 0.5);
+  const emissiveColor = isPurple ? new THREE.Color(0.6, 0.1, 0.9) : new THREE.Color(0.1, 0.8, 0.7);
+
+  const fish = [];
+  for (let i = 0; i < FISH_PER_SCHOOL; i++) {
+    const mat = new THREE.MeshLambertMaterial({
+      color: baseColor.clone().offsetHSL(Math.random()*0.05-0.025, 0, Math.random()*0.1-0.05),
+      emissive: new THREE.Color(0,0,0), emissiveIntensity: 1,
+      transparent: true, opacity: 0.8
+    });
+    bioMaterials.push({ mat, color: emissiveColor });
+    // Fish body: elongated sphere
+    const bodyGeo = new THREE.SphereGeometry(0.2, 6, 4);
+    const mesh = new THREE.Mesh(bodyGeo, mat);
+    mesh.scale.set(1.8, 0.7, 0.9);
+    // Scatter within school radius
+    mesh.position.set((Math.random()-0.5)*4, (Math.random()-0.5)*1.5, (Math.random()-0.5)*4);
+    group.add(mesh);
+    fish.push({
+      mesh,
+      offset: new THREE.Vector3((Math.random()-0.5)*4, (Math.random()-0.5)*1.5, (Math.random()-0.5)*4),
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+
+  scene.add(group);
+  return {
+    group, fish,
+    vel: new THREE.Vector3((Math.random()-0.5)*2, 0, (Math.random()-0.5)*2),
+    turnTimer: 3 + Math.random() * 5,
+    wobblePhase: Math.random() * Math.PI * 2
+  };
+}
+
+function removeSchool(s) {
+  const sch = schools[s];
+  sch.fish.forEach(f => {
+    const idx = bioMaterials.findIndex(b => b.mat === f.mesh.material);
+    if (idx !== -1) bioMaterials.splice(idx, 1);
+    f.mesh.geometry.dispose();
+    f.mesh.material.dispose();
+  });
+  scene.remove(sch.group);
+  schools.splice(s, 1);
+}
+
+function updateSchools(dt, now) {
+  const camX = camera.position.x, camZ = camera.position.z;
+  const t = now * 0.001;
+  const LEASH_R = SCHOOL_SPAWN_R * 1.2; // start pulling back at 72 units
+  const HARD_DESPAWN_R2 = (SCHOOL_SPAWN_R * 4) * (SCHOOL_SPAWN_R * 4); // only despawn at 240 units
+
+  // Leash schools back toward player, hard-despawn only if extremely far
+  for (let s = schools.length - 1; s >= 0; s--) {
+    const sch = schools[s];
+    const dx = sch.group.position.x - camX, dz = sch.group.position.z - camZ;
+    const dist2 = dx*dx + dz*dz;
+    if (dist2 > HARD_DESPAWN_R2) {
+      removeSchool(s);
+    } else if (dist2 > LEASH_R * LEASH_R) {
+      // Gently steer back toward player
+      const dist = Math.sqrt(dist2);
+      const pull = (dist - LEASH_R) * 0.02; // stronger pull the further they are
+      sch.vel.x -= (dx / dist) * pull;
+      sch.vel.z -= (dz / dist) * pull;
+    }
+  }
+
+  // Spawn new schools gradually (one per 3 seconds max)
+  schoolSpawnCooldown -= dt;
+  if (schools.length < SCHOOL_COUNT && schoolSpawnCooldown <= 0) {
+    const newSchool = createSchool(camX, camZ);
+    if (newSchool) schools.push(newSchool);
+    schoolSpawnCooldown = 3;
+  }
+
+  // Day/night behavior for fish:
+  // Night: schools move slower, fish scale slightly larger (glow handled by bio system)
+  // Day: normal behavior
+  const fishSpeedMult = 0.5 + currentDayF * 0.5; // night: 0.5x, day: 1.0x
+  const fishScaleMult = 1.0 + (1 - currentDayF) * 0.3; // night: 1.3x, day: 1.0x
+
+  // Update each school
+  for (const sch of schools) {
+    // School direction change — gradual steering instead of sudden jumps
+    sch.turnTimer -= dt;
+    if (sch.turnTimer <= 0) {
+      sch.targetVelX = (Math.random()-0.5) * 3;
+      sch.targetVelZ = (Math.random()-0.5) * 3;
+      sch.turnTimer = 4 + Math.random() * 6;
+    }
+    // Smoothly steer toward target velocity
+    if (sch.targetVelX !== undefined) {
+      sch.vel.x += (sch.targetVelX - sch.vel.x) * 0.02;
+      sch.vel.z += (sch.targetVelZ - sch.vel.z) * 0.02;
+    }
+    const len = Math.sqrt(sch.vel.x*sch.vel.x + sch.vel.z*sch.vel.z);
+    if (len > 2.0) { sch.vel.x = sch.vel.x/len*2.0; sch.vel.z = sch.vel.z/len*2.0; }
+
+    // Move school center (speed varies by time of day)
+    sch.group.position.x += sch.vel.x * fishSpeedMult * dt;
+    sch.group.position.z += sch.vel.z * fishSpeedMult * dt;
+
+    // Keep school in water — steer away from shallows gradually
+    const th = getHeight(sch.group.position.x, sch.group.position.z);
+    if (th >= WATER_LEVEL - 1.5) {
+      // Steer toward deeper water by sampling nearby terrain
+      let bestDx = 0, bestDz = 0, bestDepth = th;
+      for (let probe = 0; probe < 4; probe++) {
+        const pa = probe * Math.PI * 0.5;
+        const px2 = sch.group.position.x + Math.cos(pa) * 5;
+        const pz2 = sch.group.position.z + Math.sin(pa) * 5;
+        const ph = getHeight(px2, pz2);
+        if (ph < bestDepth) { bestDepth = ph; bestDx = Math.cos(pa); bestDz = Math.sin(pa); }
+      }
+      sch.vel.x += bestDx * 2 * dt;
+      sch.vel.z += bestDz * 2 * dt;
+    }
+    const waterD = WATER_LEVEL - th;
+    sch.group.position.y = th + Math.min(waterD * 0.4, 2) + 0.5 + Math.sin(t + sch.wobblePhase) * 0.3;
+
+    // Rotate school group to face movement direction
+    if (Math.abs(sch.vel.x) + Math.abs(sch.vel.z) > 0.1) {
+      sch.group.rotation.y = Math.atan2(sch.vel.x, sch.vel.z);
+    }
+
+    // Animate individual fish within school
+    for (const f of sch.fish) {
+      const p = f.phase + t;
+      // Fish orbit their offset position with slight wobble
+      f.mesh.position.x = f.offset.x + Math.sin(p * 1.3) * 0.6;
+      f.mesh.position.y = f.offset.y + Math.sin(p * 0.9) * 0.3;
+      f.mesh.position.z = f.offset.z + Math.cos(p * 1.1) * 0.5;
+      // Fish wag (rotate slightly for swimming motion)
+      f.mesh.rotation.y = Math.sin(p * 4) * 0.25;
+      // Fish scale: slightly larger at night
+      f.mesh.scale.set(1.8 * fishScaleMult, 0.7 * fishScaleMult, 0.9 * fishScaleMult);
+    }
+  }
+}
+
+// ── 3. Scurrying Ground Creatures ─────────────────────────────────
+const GC_COUNT = MOBILE ? 3 : 6;
+const GC_SPAWN_R = 30;
+const GC_DESPAWN_R = 45;
+const groundCreatures = [];
+
+function createGroundCreature(px, pz) {
+  const terrainH = getHeight(px, pz);
+  // Avoid water
+  if (terrainH < WATER_LEVEL) return null;
+
+  const bodyMat = new THREE.MeshLambertMaterial({
+    color: new THREE.Color(0.6, 0.3, 0.1),
+    emissive: new THREE.Color(0, 0, 0),
+    emissiveIntensity: 1
+  });
+  bioMaterials.push({ mat: bodyMat, color: new THREE.Color(0.5, 0.25, 0.08) });
+
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 6, 4),
+    bodyMat
+  );
+  mesh.scale.set(1, 0.4, 1);
+  mesh.position.set(px, terrainH + 0.1, pz);
+  scene.add(mesh);
+
+  return {
+    mesh, bodyMat,
+    state: 'idle', // 'idle', 'scurry', 'flee'
+    timer: 1 + Math.random() * 2,
+    vx: 0, vz: 0,
+    scurrySpeed: 3 + Math.random() * 3,
+    fleeSpeed: 8 + Math.random() * 2
+  };
+}
+
+function updateGroundCreatures(dt) {
+  const camX = camera.position.x, camZ = camera.position.z;
+  const camY = camera.position.y;
+
+  // Remove creatures too far away
+  for (let i = groundCreatures.length - 1; i >= 0; i--) {
+    const gc = groundCreatures[i];
+    const dx = gc.mesh.position.x - camX, dz = gc.mesh.position.z - camZ;
+    if (dx * dx + dz * dz > GC_DESPAWN_R * GC_DESPAWN_R) {
+      scene.remove(gc.mesh);
+      gc.mesh.geometry.dispose();
+      const idx = bioMaterials.findIndex(b => b.mat === gc.bodyMat);
+      if (idx !== -1) bioMaterials.splice(idx, 1);
+      gc.bodyMat.dispose();
+      groundCreatures.splice(i, 1);
+    }
+  }
+
+  // Spawn new if needed
+  let spawnAttempts = 0;
+  while (groundCreatures.length < GC_COUNT && spawnAttempts < 20) {
+    spawnAttempts++;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 10 + Math.random() * (GC_SPAWN_R - 10);
+    const gc = createGroundCreature(
+      camX + Math.cos(angle) * dist,
+      camZ + Math.sin(angle) * dist
+    );
+    if (gc) groundCreatures.push(gc);
+  }
+
+  // Day/night behavior for ground creatures:
+  // Day (currentDayF=1): longer idle (3-5s), skittish (flee at 12 units), slower
+  // Night (currentDayF=0): shorter idle (0.5-1.5s), bold (flee at 5 units), faster
+  const gcFleeDistSq = Math.pow(5 + currentDayF * 7, 2); // night: 25, day: 144
+  const gcIdleMin = 0.5 + currentDayF * 2.5;   // night: 0.5s, day: 3s
+  const gcIdleRange = 1.0 + currentDayF * 1.0;  // night: 1s range, day: 2s range
+  const gcSpeedMult = 1.0 + (1 - currentDayF) * 0.4; // night: 1.4x, day: 1.0x
+
+  // Update each creature
+  for (const gc of groundCreatures) {
+    const px = gc.mesh.position.x, pz = gc.mesh.position.z;
+    const dx = px - camX, dz = pz - camZ;
+    const distSq = dx * dx + dz * dz;
+
+    // Check for flee: distance varies by time of day
+    if (distSq < gcFleeDistSq) {
+      if (gc.state !== 'flee') {
+        gc.state = 'flee';
+        gc.timer = 1.5 + Math.random();
+        // Run away from camera
+        const dist2 = Math.sqrt(distSq) || 1;
+        gc.vx = (dx / dist2);
+        gc.vz = (dz / dist2);
+      }
+    }
+
+    gc.timer -= dt;
+
+    if (gc.state === 'idle') {
+      if (gc.timer <= 0) {
+        // Start scurrying
+        gc.state = 'scurry';
+        gc.timer = 0.5 + Math.random() * 0.5;
+        const angle = Math.random() * Math.PI * 2;
+        gc.vx = Math.cos(angle);
+        gc.vz = Math.sin(angle);
+      }
+    } else if (gc.state === 'scurry') {
+      const spd = gc.scurrySpeed * gcSpeedMult * dt;
+      const nx = px + gc.vx * spd;
+      const nz = pz + gc.vz * spd;
+      const nh = getHeight(nx, nz);
+      // Avoid water
+      if (nh >= WATER_LEVEL) {
+        gc.mesh.position.x = nx;
+        gc.mesh.position.z = nz;
+        gc.mesh.position.y = nh + 0.1;
+      } else {
+        // Reverse direction
+        gc.vx = -gc.vx;
+        gc.vz = -gc.vz;
+      }
+      if (gc.timer <= 0) {
+        gc.state = 'idle';
+        gc.timer = gcIdleMin + Math.random() * gcIdleRange;
+      }
+    } else if (gc.state === 'flee') {
+      const spd = gc.fleeSpeed * gcSpeedMult * dt;
+      const nx = px + gc.vx * spd;
+      const nz = pz + gc.vz * spd;
+      const nh = getHeight(nx, nz);
+      if (nh >= WATER_LEVEL) {
+        gc.mesh.position.x = nx;
+        gc.mesh.position.z = nz;
+        gc.mesh.position.y = nh + 0.1;
+      } else {
+        gc.vx = -gc.vx;
+        gc.vz = -gc.vz;
+      }
+      if (gc.timer <= 0) {
+        gc.state = 'idle';
+        gc.timer = gcIdleMin + Math.random() * gcIdleRange;
+      }
+    }
+
+    // Align to terrain slope slightly (tilt in movement direction)
+    if (gc.state !== 'idle') {
+      gc.mesh.rotation.y = Math.atan2(gc.vx, gc.vz);
+    }
+  }
+}
+
+// ── Start ──────────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', () => {
+started = true;
+document.getElementById('overlay').style.display = 'none';
+document.getElementById('crosshair').style.display = 'block';
+menuBtn.style.display = 'flex';
+hotbar.style.display = 'flex';
+if (!MOBILE) { document.getElementById('ui').style.display='block'; canvas.requestPointerLock(); }
+else { jZone.style.display='block'; }
+lastCX = null; lastCZ = null;
+updateChunks();
+});
+
+// ── HUD elements ───────────────────────────────────────────────
+const coordsEl = document.getElementById('coords');
+const uwOverlay = document.getElementById('underwater-overlay');
+
+// ── Loop ───────────────────────────────────────────────────────
+const fpsEl = document.getElementById('fps');
+let fFrames = 0, fLast = performance.now();
+let prevTime = 0;
+let frameCount = 0;
+
+function animate(now) {
+requestAnimationFrame(animate);
+const dt = prevTime ? Math.min((now - prevTime) / 1000, 0.1) : 0.016;
+prevTime = now;
+frameCount++;
+
+// Sky follows camera (before day/night so sun world positions are correct)
+skyGroup.position.copy(camera.position);
+
+// Day/night
+timeOfDay = (timeOfDay + DAY_SPEED) % 1;
+updateDayNight(timeOfDay);
+
+// Storms
+updateStorms(dt);
+const stormI = getStormIntensity(camera.position.x, camera.position.z);
+
+// Storm atmosphere
+if (stormI > 0.01) {
+scene.fog.color.lerp(stormDarkColor, stormI * 0.35);
+scene.fog.far = BASE_FOG_FAR * (1 - stormI * 0.3);
+}
+
+// Movement
+doMove();
+euler.set(pitch, yaw, 0, 'YXZ');
+camera.quaternion.setFromEuler(euler);
+
+// Underwater detection
+const isUnderwater = camera.position.y < WATER_LEVEL;
+
+// Underwater effects
+if (isUnderwater) {
+uwOverlay.style.opacity = '1';
+scene.fog.color.set(0x051825);
+scene.fog.near = 2;
+scene.fog.far = MOBILE ? 30 : 50;
+ambLight.intensity = Math.max(0.08, ambLight.intensity * 0.3);
+// Underwater particles
+uwParticles.visible = true;
+uwParticles.position.copy(camera.position);
+const up = uwGeo.attributes.position.array;
+for (let i = 0; i < UW_COUNT; i++) {
+const i3 = i * 3;
+up[i3] += uwDrift[i3] * dt;
+up[i3+1] += uwDrift[i3+1] * dt;
+up[i3+2] += uwDrift[i3+2] * dt;
+if (up[i3+1] > 10) up[i3+1] = -10;
+if (Math.abs(up[i3]) > 15) up[i3] = -up[i3] * 0.5;
+if (Math.abs(up[i3+2]) > 15) up[i3+2] = -up[i3+2] * 0.5;
+}
+uwGeo.attributes.position.needsUpdate = true;
+} else {
+uwOverlay.style.opacity = '0';
+uwParticles.visible = false;
+}
+
+// Water mesh follows camera
+waterMesh.position.x = camera.position.x;
+waterMesh.position.z = camera.position.z;
+
+// Water shader uniforms
+waterMat.uniforms.uTime.value = now * 0.001;
+waterMat.uniforms.uNightFactor.value = Math.max(0, 1 - currentDayF * 2.5);
+waterMat.uniforms.uStormIntensity.value = stormI;
+waterMat.uniforms.uFogColor.value.copy(scene.fog.color);
+waterMat.uniforms.uFogNear.value = scene.fog.near;
+waterMat.uniforms.uFogFar.value = scene.fog.far;
+
+// Rain (not shown underwater)
+if (!isUnderwater) {
+updateRain(dt);
+} else {
+rainMesh.visible = false;
+}
+
+// Lightning (only above water)
+if (!isUnderwater) {
+updateLightning(dt);
+}
+
+// Spore Bloom (only above water)
+if (!isUnderwater) {
+updateSporeBloom(dt);
+} else {
+if (sporeBloomActive) {
+  sporeMesh.visible = false;
+}
+}
+
+// Chunks
+updateChunks();
+
+// Creatures
+if (started) {
+updateJellyfish(dt, now);
+updateSchools(dt, now);
+updateGroundCreatures(dt);
+}
+
+// Locator beacon pickup object
+if (!beaconPickedUp) {
+  // Pulse red antenna light and beam opacity
+  const fobPulse = 0.5 + Math.sin(now * 0.003) * 0.5;
+  fobRedMat.opacity = 0.5 + fobPulse * 0.5;
+  devTop.scale.setScalar(0.8 + fobPulse * 0.4);
+  beamMat.opacity = 0.08 + Math.sin(now * 0.001 * 1.5) * 0.05;
+  beamCoreMat.opacity = 0.2 + Math.sin(now * 0.001 * 2) * 0.08;
+  groundGlowMat.opacity = 0.2 + Math.sin(now * 0.001 * 1.5) * 0.1;
+  // Auto-pickup when player is within 3 units
+  const bdx = camera.position.x - beaconX, bdz = camera.position.z - beaconZ;
+  if (bdx*bdx + bdz*bdz < 9) { // 3 units squared
+    beaconPickedUp = true;
+    scene.remove(beaconGroup);
+    scene.remove(beaconBeamGroup);
+    addToInventory(locatorItem);
+  }
+}
+
+// Locator arrow update
+if (locatorActive) {
+  const lt = locatorTargets[currentLocatorTarget];
+  // Position arrow 8 units in front of player, above terrain
+  const lfwd = new THREE.Vector3();
+  camera.getWorldDirection(lfwd);
+  const arrowX = camera.position.x + lfwd.x * 20;
+  const arrowZ = camera.position.z + lfwd.z * 20;
+  const arrowTerrY = getHeight(arrowX, arrowZ);
+  arrowGroup.position.set(arrowX, arrowTerrY + 4, arrowZ);
+  // Point arrow toward target
+  const lAngle = Math.atan2(lt.x - arrowX, lt.z - arrowZ);
+  arrowGroup.rotation.y = lAngle;
+  // Bob slightly
+  arrowGroup.position.y += Math.sin(now * 0.001 * 2) * 0.3;
+}
+
+// Ruins animations: rotating ring and pulsing crystal
+monolithRing.rotation.y += dt * 0.8;
+crystal.material.opacity = 0.45 + Math.sin(now * 0.002) * 0.15;
+
+// Pickup notification timer
+if (pickupNotifTimer > 0) {
+  pickupNotifTimer -= dt;
+  if (pickupNotifTimer <= 0) pickupNotif.style.opacity = '0';
+}
+
+// Coordinate HUD
+coordsEl.textContent = 'X: ' + Math.round(camera.position.x) + '  Y: ' + Math.round(camera.position.y) + '  Z: ' + Math.round(camera.position.z);
+
+// Compass
+updateCompass();
+
+// Minimap (update every frame when expanded, every 10 frames otherwise)
+if (hudPositions.minimap !== 'hidden') {
+if (minimapExpanded || frameCount % 10 === 0) {
+updateMinimap();
+}
+}
+
+// Render
+renderer.render(scene, camera);
+
+// FPS
+fFrames++;
+if (now - fLast > 1000) {
+fpsEl.textContent = Math.round(fFrames*1000/(now-fLast)) + ' fps';
+fFrames=0; fLast=now;
+}
+}
+animate(0);
+</script>
+</body>
+</html>

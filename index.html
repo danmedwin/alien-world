@@ -373,7 +373,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   font-family:monospace; pointer-events:none;
 }
 .hotbar-icon {
-  font-size:28px; pointer-events:none;
+  font-size:34px; pointer-events:none;
 }
 .hotbar-label {
   position:absolute; bottom:-14px; left:50%; transform:translateX(-50%);
@@ -592,7 +592,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 </div>
 
 <div id="waypoint-panel">
-  <div id="waypoint-panel-header">WAYPOINTS</div>
+  <div id="waypoint-panel-header">LOCATIONS</div>
   <div id="waypoint-list"></div>
   <button id="waypoint-drop-pin">+ Drop Pin</button>
 </div>
@@ -2382,9 +2382,9 @@ function positionZoomControls() {
     minimapZoom.style.width = '32px';
     minimapZoom.style.height = r.height + 'px';
   } else {
-    // Horizontal strip above the map, aligned to its edges
+    // Horizontal strip below the map
     minimapZoom.style.left = r.left + 'px';
-    minimapZoom.style.top = (r.top - 40) + 'px';
+    minimapZoom.style.top = (r.bottom + 6) + 'px';
     minimapZoom.style.width = r.width + 'px';
     minimapZoom.style.height = '32px';
   }
@@ -2648,9 +2648,15 @@ document.getElementById('pin-save').addEventListener('click', function(e) {
 document.getElementById('pin-delete').addEventListener('click', function(e) {
   e.stopPropagation();
   if (editingPinIdx >= 0 && waypoints[editingPinIdx] && waypoints[editingPinIdx].type === 'pin') {
+    var wasActive = (editingPinIdx === activeWaypointIdx);
     waypoints.splice(editingPinIdx, 1);
-    if (activeWaypointIdx >= waypoints.length) activeWaypointIdx = waypoints.length - 1;
-    if (activeWaypointIdx < 0) { locatorActive = false; arrowGroup.visible = false; }
+    if (wasActive) {
+      locatorActive = false; arrowGroup.visible = false;
+      locatorItem.active = false; activeWaypointIdx = -1;
+      updateHotbarUI();
+    } else if (activeWaypointIdx > editingPinIdx) {
+      activeWaypointIdx--;
+    }
     updateWaypointPanel();
   }
   closePinEditor();
@@ -2679,9 +2685,15 @@ document.getElementById('pin-save').addEventListener('touchend', function(e) {
 document.getElementById('pin-delete').addEventListener('touchend', function(e) {
   e.stopPropagation(); e.preventDefault();
   if (editingPinIdx >= 0 && waypoints[editingPinIdx] && waypoints[editingPinIdx].type === 'pin') {
+    var wasActive = (editingPinIdx === activeWaypointIdx);
     waypoints.splice(editingPinIdx, 1);
-    if (activeWaypointIdx >= waypoints.length) activeWaypointIdx = waypoints.length - 1;
-    if (activeWaypointIdx < 0) { locatorActive = false; arrowGroup.visible = false; }
+    if (wasActive) {
+      locatorActive = false; arrowGroup.visible = false;
+      locatorItem.active = false; activeWaypointIdx = -1;
+      updateHotbarUI();
+    } else if (activeWaypointIdx > editingPinIdx) {
+      activeWaypointIdx--;
+    }
     updateWaypointPanel();
   }
   closePinEditor();
@@ -2715,23 +2727,31 @@ function positionWaypointPanel() {
   var r = canvas2.getBoundingClientRect();
   var isLandscape = window.innerWidth > window.innerHeight;
   if (isLandscape) {
-    // Landscape: to the right of map + zoom controls
+    // Landscape: to the right of map + zoom controls, wider
     waypointPanel.style.right = 'auto';
     waypointPanel.style.left = (r.right + 50) + 'px';
     waypointPanel.style.top = r.top + 'px';
-    waypointPanel.style.width = '160px';
+    waypointPanel.style.width = '200px';
     waypointPanel.style.maxHeight = r.height + 'px';
   } else {
-    // Portrait: below the map, 2/3 width, aligned right (clears joystick on left)
-    var panelW = Math.floor(window.innerWidth * 0.63);
+    // Portrait: below map + zoom slider, half screen width, aligned right
+    var panelW = Math.floor(window.innerWidth * 0.5);
     waypointPanel.style.left = 'auto';
     waypointPanel.style.right = '12px';
-    waypointPanel.style.top = (r.bottom + 10) + 'px';
+    waypointPanel.style.top = (r.bottom + 46) + 'px';
     waypointPanel.style.width = panelW + 'px';
     waypointPanel.style.maxHeight = (window.innerHeight - r.bottom - 100) + 'px';
   }
   updateWaypointPanel();
 }
+
+// Re-layout fullscreen map on orientation/resize change
+window.addEventListener('resize', function() {
+  if (minimapExpanded) {
+    toggleMinimap(); // close
+    toggleMinimap(); // reopen with new dimensions
+  }
+});
 
 // ── Compass Update ─────────────────────────────────────────────
 const compassEl = document.getElementById('compass');
@@ -3486,12 +3506,16 @@ function handlePuzzleTap(clientX, clientY) {
   }
 }
 
-// Listen for clicks/taps on the canvas
+// Listen for clicks/taps on the canvas (debounce to prevent double-fire on mobile)
+var puzzleTapTime = 0;
 canvas.addEventListener('click', function(e) {
+  if (Date.now() - puzzleTapTime < 300) return;
+  puzzleTapTime = Date.now();
   handlePuzzleTap(e.clientX, e.clientY);
 });
 canvas.addEventListener('touchend', function(e) {
   if (e.changedTouches.length > 0) {
+    puzzleTapTime = Date.now();
     var t = e.changedTouches[0];
     handlePuzzleTap(t.clientX, t.clientY);
   }
@@ -3717,6 +3741,19 @@ if (hudPositions.minimap !== 'hidden') {
 if (minimapExpanded || frameCount % 10 === 0) {
 updateMinimap();
 }
+}
+
+// Live-update waypoint distances when panel is visible
+if (minimapExpanded && waypointPanel && waypointPanel.style.display === 'block' && frameCount % 15 === 0) {
+  var distSpans = waypointList.querySelectorAll('.waypoint-dist');
+  for (var wdi = 0; wdi < distSpans.length; wdi++) {
+    var wIdx = parseInt(distSpans[wdi].parentElement.getAttribute('data-idx'));
+    if (wIdx >= 0 && wIdx < waypoints.length) {
+      var wdx = camera.position.x - waypoints[wIdx].x;
+      var wdz = camera.position.z - waypoints[wIdx].z;
+      distSpans[wdi].textContent = Math.round(Math.sqrt(wdx*wdx + wdz*wdz)) + 'm';
+    }
+  }
 }
 
 // Render

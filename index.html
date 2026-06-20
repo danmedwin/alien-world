@@ -429,6 +429,62 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   font-family:monospace; font-size:10px; color:rgba(255,170,50,0.9);
   pointer-events:none; min-width:100px; white-space:pre;
 }
+#waypoint-panel {
+  display:none;
+  position:fixed;
+  background:rgba(20,6,45,0.92);
+  border:1px solid rgba(160,100,255,0.35);
+  border-radius:10px;
+  padding:10px;
+  z-index:29;
+  font-family:monospace;
+  color:#c8aaff;
+  pointer-events:auto;
+  overflow-y:auto;
+  max-height:300px;
+}
+#waypoint-panel-header {
+  font-size:11px;
+  letter-spacing:0.1em;
+  color:rgba(160,130,200,0.6);
+  text-transform:uppercase;
+  margin-bottom:8px;
+  text-align:center;
+}
+.waypoint-item {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 4px;
+  border-bottom:1px solid rgba(160,100,255,0.1);
+  font-size:11px;
+  cursor:pointer;
+}
+.waypoint-item:last-child { border-bottom:none; }
+.waypoint-item.active { background:rgba(100,50,180,0.3); border-radius:4px; }
+.waypoint-dot {
+  width:10px; height:10px; border-radius:50%; flex-shrink:0;
+}
+.waypoint-name { flex:1; color:rgba(200,170,255,0.8); }
+.waypoint-dist { color:rgba(160,130,200,0.5); font-size:10px; }
+.waypoint-delete {
+  color:rgba(255,100,100,0.5); cursor:pointer; font-size:14px;
+  padding:0 4px;
+}
+.waypoint-delete:hover { color:rgba(255,100,100,0.9); }
+#waypoint-drop-pin {
+  width:100%;
+  margin-top:8px;
+  background:rgba(60,30,100,0.5);
+  border:1px solid rgba(160,100,255,0.3);
+  border-radius:6px;
+  color:rgba(200,170,255,0.8);
+  font-family:monospace;
+  font-size:11px;
+  padding:6px;
+  cursor:pointer;
+}
+#waypoint-drop-pin:hover { background:rgba(100,50,180,0.5); }
 </style>
 </head>
 <body>
@@ -494,6 +550,12 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 
 <div id="scanner-overlay">
   <div id="scanner-readout">SCANNING...</div>
+</div>
+
+<div id="waypoint-panel">
+  <div id="waypoint-panel-header">WAYPOINTS</div>
+  <div id="waypoint-list"></div>
+  <button id="waypoint-drop-pin">+ Drop Pin</button>
 </div>
 
 <!-- Menu Button (gear icon, hidden until game starts) -->
@@ -1515,12 +1577,13 @@ hotbarSlots.forEach((slot, i) => {
 
 updateHotbarUI();
 
-// ── Locator Item Definition ───────────────────────────────────
-const locatorTargets = [
-  { name: 'Ancient Signal', x: 150, z: 170, color: 0x44ff88 },
-];
-let currentLocatorTarget = 0;
-let locatorActive = false;
+// ── Waypoint System ──────────────────────────────────────────
+var waypoints = [];
+waypoints.push({ name: 'Spawn', x: 0, z: 0, color: '#ffffff', type: 'fixed' });
+waypoints.push({ name: 'Ancient Signal', x: 150, z: 170, color: '#44ff88', type: 'chip' });
+
+var activeWaypointIdx = -1;
+var locatorActive = false;
 
 // 3D holographic arrow — extruded chevron with tail, clear directionality
 const arrowGroup = new THREE.Group();
@@ -1589,27 +1652,44 @@ arrowGroup.add(arrowGlow);
 arrowGroup.visible = false;
 scene.add(arrowGroup);
 
-const locatorItem = {
+var locatorItem = {
   name: 'Locator',
   icon: '\u{1F7E2}',
   active: false,
   onUse: function() {
-    if (this.active) {
-      // Toggle off
-      this.active = false;
-      locatorActive = false;
-      arrowGroup.visible = false;
-      showPickupNotification('Locator off');
+    if (waypoints.length === 0) {
+      showPickupNotification('No signals detected');
       return;
     }
-    this.active = true;
-    currentLocatorTarget = 0;
-    locatorActive = true;
-    arrowGroup.visible = true;
-    const t = locatorTargets[currentLocatorTarget];
-    arrowMat.color.set(t.color);
-    arrowMat2.color.set(t.color);
-    showPickupNotification('Tracking: ' + t.name);
+    if (this.active) {
+      // Cycle to next waypoint
+      activeWaypointIdx++;
+      if (activeWaypointIdx >= waypoints.length) {
+        // Past last — deactivate
+        this.active = false;
+        locatorActive = false;
+        arrowGroup.visible = false;
+        activeWaypointIdx = -1;
+        showPickupNotification('Locator off');
+        return;
+      }
+      var wp = waypoints[activeWaypointIdx];
+      arrowMat.color.set(wp.color);
+      arrowMat2.color.set(wp.color);
+      showPickupNotification('Tracking: ' + wp.name);
+    } else {
+      // Activate — start with first waypoint (or last active)
+      this.active = true;
+      if (activeWaypointIdx < 0 || activeWaypointIdx >= waypoints.length) {
+        activeWaypointIdx = 0;
+      }
+      locatorActive = true;
+      arrowGroup.visible = true;
+      var wp2 = waypoints[activeWaypointIdx];
+      arrowMat.color.set(wp2.color);
+      arrowMat2.color.set(wp2.color);
+      showPickupNotification('Tracking: ' + wp2.name);
+    }
   },
   onDeactivate: function() {
     this.active = false;
@@ -1679,23 +1759,45 @@ const beaconBeamGroup = new THREE.Group();
 beaconBeamGroup.position.set(beaconX, beaconTerrY, beaconZ);
 // Cone of light pointing down
 const beamGeo = new THREE.CylinderGeometry(0.15, 1.5, 12, 16, 1, true);
-const beamMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+const beamMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
 const beamMesh = new THREE.Mesh(beamGeo, beamMat);
 beamMesh.position.y = 7; // center of beam
 beaconBeamGroup.add(beamMesh);
 // Brighter inner core
 const beamCoreGeo = new THREE.CylinderGeometry(0.05, 0.4, 12, 12, 1, true);
-const beamCoreMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+const beamCoreMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
 const beamCore = new THREE.Mesh(beamCoreGeo, beamCoreMat);
 beamCore.position.y = 7;
 beaconBeamGroup.add(beamCore);
 // Ground glow ring where beam hits
-const groundGlowMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+const groundGlowMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
 const groundGlow = new THREE.Mesh(new THREE.RingGeometry(0.2, 1.5, 16), groundGlowMat);
 groundGlow.rotation.x = -Math.PI / 2;
 groundGlow.position.y = 0.05;
 beaconBeamGroup.add(groundGlow);
 scene.add(beaconBeamGroup);
+
+// ── Chip Pickup Objects (add waypoints when collected) ────────
+var chipDefs = [
+  { x: 80, z: 80, name: 'Ridge Signal', targetX: 200, targetZ: -100, color: '#ff8800' },
+  { x: -60, z: 100, name: 'Valley Signal', targetX: -180, targetZ: 180, color: '#44aaff' }
+];
+var chipMeshes = [];
+var chipsPickedUp = [];
+for (var chipI = 0; chipI < chipDefs.length; chipI++) {
+  var cd = chipDefs[chipI];
+  var chipTerrY = getHeight(cd.x, cd.z);
+  var chipMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(cd.color), transparent: true, opacity: 0.8 });
+  var chipMesh = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.25), chipMat);
+  chipMesh.position.set(cd.x, chipTerrY + 0.15, cd.z);
+  scene.add(chipMesh);
+  var chipGlowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(cd.color), transparent: true, opacity: 0.3 });
+  var chipGlow = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.35), chipGlowMat);
+  chipGlow.position.set(cd.x, chipTerrY + 0.15, cd.z);
+  scene.add(chipGlow);
+  chipMeshes.push({ mesh: chipMesh, glow: chipGlow, glowMat: chipGlowMat, mat: chipMat, def: cd });
+  chipsPickedUp.push(false);
+}
 
 let beaconPickedUp = false;
 
@@ -2175,28 +2277,28 @@ function updateMinimap() {
     }
   }
 
-  // Locator target dot on minimap
-  if (locatorActive) {
-    const t = locatorTargets[currentLocatorTarget];
-    const step2 = minimapRange / currentMinimapSize;
-    const lmx = (t.x - camera.position.x) / step2 + currentMinimapSize / 2;
-    const lmz = (t.z - camera.position.z) / step2 + currentMinimapSize / 2;
-    if (lmx >= -5 && lmx < currentMinimapSize+5 && lmz >= -5 && lmz < currentMinimapSize+5) {
-      const lc = new THREE.Color(t.color);
-      minimapCtx.fillStyle = `rgb(${Math.floor(lc.r*255)},${Math.floor(lc.g*255)},${Math.floor(lc.b*255)})`;
-      const dotSize = minimapExpanded ? 6 : 4;
+  // Draw all waypoints on minimap
+  for (var wi = 0; wi < waypoints.length; wi++) {
+    var wp = waypoints[wi];
+    var wmx = (wp.x - camera.position.x) / step + center;
+    var wmz = (wp.z - camera.position.z) / step + center;
+    if (wmx >= -5 && wmx < currentMinimapSize+5 && wmz >= -5 && wmz < currentMinimapSize+5) {
+      minimapCtx.fillStyle = wp.color;
+      var wdot = minimapExpanded ? 5 : 3;
       minimapCtx.beginPath();
-      minimapCtx.arc(lmx, lmz, dotSize, 0, Math.PI * 2);
+      minimapCtx.arc(wmx, wmz, wdot, 0, Math.PI * 2);
       minimapCtx.fill();
-      // Pulsing ring
-      minimapCtx.strokeStyle = minimapCtx.fillStyle;
-      minimapCtx.lineWidth = minimapExpanded ? 2 : 1;
-      const pulseR = dotSize + 3 + Math.sin(Date.now() * 0.004) * 2;
-      minimapCtx.globalAlpha = 0.4;
-      minimapCtx.beginPath();
-      minimapCtx.arc(lmx, lmz, pulseR, 0, Math.PI * 2);
-      minimapCtx.stroke();
-      minimapCtx.globalAlpha = 1;
+      // Pulsing ring on active waypoint
+      if (locatorActive && wi === activeWaypointIdx) {
+        minimapCtx.strokeStyle = wp.color;
+        minimapCtx.lineWidth = minimapExpanded ? 2 : 1;
+        var pulseR2 = wdot + 3 + Math.sin(Date.now() * 0.004) * 2;
+        minimapCtx.globalAlpha = 0.4;
+        minimapCtx.beginPath();
+        minimapCtx.arc(wmx, wmz, pulseR2, 0, Math.PI * 2);
+        minimapCtx.stroke();
+        minimapCtx.globalAlpha = 1;
+      }
     }
   }
 }
@@ -2261,6 +2363,7 @@ function toggleMinimap() {
     minimapZoom.style.display = 'flex';
     updateZoomFromIdx();
     requestAnimationFrame(positionZoomControls);
+    requestAnimationFrame(positionWaypointPanel);
   } else {
     canvas2.style.position = '';
     canvas2.style.width = '120px';
@@ -2270,6 +2373,7 @@ function toggleMinimap() {
     canvas2.style.zIndex = '';
     canvas2.style.borderRadius = '6px';
     minimapZoom.style.display = 'none';
+    if (waypointPanel) waypointPanel.style.display = 'none';
     // Keep zoom level — don't reset when closing
   }
 }
@@ -2318,13 +2422,123 @@ minimapCanvas.addEventListener('touchmove', function(e) {
   if (minimapExpanded) e.stopPropagation();
 }, { passive: true });
 
+// ── Waypoint Panel Logic ──────────────────────────────────────
+var waypointPanel = document.getElementById('waypoint-panel');
+var waypointList = document.getElementById('waypoint-list');
+var dropPinBtn = document.getElementById('waypoint-drop-pin');
+
+var pinColors = ['#ff4444', '#ff8800', '#ffee44', '#44ff88', '#44aaff', '#aa44ff', '#ff44aa', '#ffffff'];
+var nextPinColorIdx = 0;
+
+function updateWaypointPanel() {
+  waypointList.innerHTML = '';
+  for (var wpi = 0; wpi < waypoints.length; wpi++) {
+    var wp = waypoints[wpi];
+    var dist = Math.round(Math.sqrt(
+      Math.pow(camera.position.x - wp.x, 2) + Math.pow(camera.position.z - wp.z, 2)
+    ));
+    var div = document.createElement('div');
+    div.className = 'waypoint-item' + (locatorActive && wpi === activeWaypointIdx ? ' active' : '');
+
+    var dot = '<div class="waypoint-dot" style="background:' + wp.color + '"></div>';
+    var name = '<span class="waypoint-name">' + wp.name + '</span>';
+    var distLabel = '<span class="waypoint-dist">' + dist + 'm</span>';
+    var del = wp.type === 'pin' ? '<span class="waypoint-delete" data-idx="' + wpi + '">&times;</span>' : '';
+
+    div.innerHTML = dot + name + distLabel + del;
+    div.setAttribute('data-idx', wpi);
+    waypointList.appendChild(div);
+  }
+}
+
+waypointList.addEventListener('click', function(e) {
+  e.stopPropagation();
+  var deleteBtn = null;
+  var el = e.target;
+  while (el && el !== waypointList) {
+    if (el.classList && el.classList.contains('waypoint-delete')) { deleteBtn = el; break; }
+    el = el.parentElement;
+  }
+  if (deleteBtn) {
+    var delIdx = parseInt(deleteBtn.getAttribute('data-idx'));
+    if (waypoints[delIdx] && waypoints[delIdx].type === 'pin') {
+      waypoints.splice(delIdx, 1);
+      if (activeWaypointIdx >= waypoints.length) activeWaypointIdx = waypoints.length - 1;
+      if (activeWaypointIdx < 0) { locatorActive = false; arrowGroup.visible = false; }
+      updateWaypointPanel();
+    }
+    return;
+  }
+  var item = null;
+  el = e.target;
+  while (el && el !== waypointList) {
+    if (el.classList && el.classList.contains('waypoint-item')) { item = el; break; }
+    el = el.parentElement;
+  }
+  if (item) {
+    var idx = parseInt(item.getAttribute('data-idx'));
+    activeWaypointIdx = idx;
+    locatorActive = true;
+    arrowGroup.visible = true;
+    var wp2 = waypoints[idx];
+    arrowMat.color.set(wp2.color);
+    arrowMat2.color.set(wp2.color);
+    locatorItem.active = true;
+    updateHotbarUI();
+    updateWaypointPanel();
+    showPickupNotification('Tracking: ' + wp2.name);
+  }
+});
+waypointList.addEventListener('touchend', function(e) { e.stopPropagation(); }, {passive:true});
+waypointList.addEventListener('touchstart', function(e) { e.stopPropagation(); }, {passive:true});
+
+dropPinBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
+  var pinColor = pinColors[nextPinColorIdx % pinColors.length];
+  nextPinColorIdx++;
+  var pinName = 'Pin ' + nextPinColorIdx;
+  waypoints.push({
+    name: pinName,
+    x: Math.round(camera.position.x),
+    z: Math.round(camera.position.z),
+    color: pinColor,
+    type: 'pin'
+  });
+  updateWaypointPanel();
+  showPickupNotification('Pin dropped: ' + pinName);
+});
+dropPinBtn.addEventListener('touchend', function(e) { e.stopPropagation(); e.preventDefault(); }, {passive:false});
+
+function positionWaypointPanel() {
+  if (!minimapExpanded) { waypointPanel.style.display = 'none'; return; }
+  waypointPanel.style.display = 'block';
+  var canvas2 = document.getElementById('minimap-canvas');
+  var r = canvas2.getBoundingClientRect();
+  var isLandscape = window.innerWidth > window.innerHeight;
+  if (isLandscape) {
+    waypointPanel.style.left = (r.right + 50) + 'px';
+    waypointPanel.style.top = r.top + 'px';
+    waypointPanel.style.width = '160px';
+  } else {
+    waypointPanel.style.left = r.left + 'px';
+    waypointPanel.style.top = (r.top - 45 - 200) + 'px';
+    waypointPanel.style.width = r.width + 'px';
+    if (window.innerWidth - r.right > 170) {
+      waypointPanel.style.left = (r.right + 10) + 'px';
+      waypointPanel.style.top = r.top + 'px';
+      waypointPanel.style.width = '160px';
+    }
+  }
+  updateWaypointPanel();
+}
+
 // ── Compass Update ─────────────────────────────────────────────
 const compassEl = document.getElementById('compass');
 
 function updateCompass() {
   // yaw is the camera rotation around Y axis
   // Rotate the compass so N always points north in the world
-  const deg = (yaw * 180 / Math.PI);
+  const deg = -(yaw * 180 / Math.PI);
   compassEl.style.transform = 'rotate(' + deg + 'deg)';
 }
 
@@ -3207,18 +3421,43 @@ if (!beaconPickedUp) {
   }
 }
 
+// Chip pickup check
+for (var ci2 = 0; ci2 < chipMeshes.length; ci2++) {
+  if (!chipsPickedUp[ci2]) {
+    var chipObj = chipMeshes[ci2];
+    chipObj.mesh.rotation.y += dt * 1.5;
+    chipObj.glow.rotation.y -= dt * 0.8;
+    chipObj.glowMat.opacity = 0.2 + Math.sin(now * 0.003) * 0.15;
+    var cdx = camera.position.x - chipObj.def.x;
+    var cdz = camera.position.z - chipObj.def.z;
+    if (cdx * cdx + cdz * cdz < 6.25) {
+      chipsPickedUp[ci2] = true;
+      scene.remove(chipObj.mesh);
+      scene.remove(chipObj.glow);
+      waypoints.push({
+        name: chipObj.def.name,
+        x: chipObj.def.targetX,
+        z: chipObj.def.targetZ,
+        color: chipObj.def.color,
+        type: 'chip'
+      });
+      showPickupNotification('Signal acquired: ' + chipObj.def.name);
+    }
+  }
+}
+
 // Locator arrow update
-if (locatorActive) {
-  const lt = locatorTargets[currentLocatorTarget];
-  // Position arrow 8 units in front of player, above terrain
-  const lfwd = new THREE.Vector3();
+if (locatorActive && activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) {
+  var awp = waypoints[activeWaypointIdx];
+  // Position arrow 20 units in front of player, above terrain
+  var lfwd = new THREE.Vector3();
   camera.getWorldDirection(lfwd);
-  const arrowX = camera.position.x + lfwd.x * 20;
-  const arrowZ = camera.position.z + lfwd.z * 20;
-  const arrowTerrY = getHeight(arrowX, arrowZ);
+  var arrowX = camera.position.x + lfwd.x * 20;
+  var arrowZ = camera.position.z + lfwd.z * 20;
+  var arrowTerrY = getHeight(arrowX, arrowZ);
   arrowGroup.position.set(arrowX, arrowTerrY + 0.3, arrowZ);
   // Point arrow toward target
-  const lAngle = Math.atan2(lt.x - arrowX, lt.z - arrowZ);
+  var lAngle = Math.atan2(awp.x - arrowX, awp.z - arrowZ);
   arrowGroup.rotation.y = lAngle;
   // Bob slightly
   arrowGroup.position.y += Math.sin(now * 0.001 * 2) * 0.15;

@@ -375,6 +375,14 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 .hotbar-icon {
   font-size:34px; pointer-events:none;
 }
+.hotbar-icon.locator-icon {
+  font-size:22px;
+  width:28px; height:32px;
+  display:flex; align-items:center; justify-content:center;
+  border:1.5px solid currentColor;
+  border-radius:4px;
+  margin-top:-2px;
+}
 .hotbar-label {
   position:absolute; bottom:-14px; left:50%; transform:translateX(-50%);
   font-size:8px; color:rgba(180,150,220,0.5);
@@ -428,6 +436,64 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   border-radius:8px; padding:8px 12px; z-index:7;
   font-family:monospace; font-size:10px; color:rgba(255,170,50,0.9);
   pointer-events:none; min-width:100px; white-space:pre;
+}
+#scan-card {
+  display:none;
+  position:absolute;
+  left:50%; top:55%;
+  transform:translateX(-50%);
+  background:rgba(20,6,45,0.88);
+  border:1px solid rgba(255,170,50,0.4);
+  border-radius:8px;
+  padding:8px 14px;
+  font-family:monospace;
+  color:rgba(255,170,50,0.9);
+  pointer-events:none;
+  z-index:8;
+  min-width:160px;
+  text-align:center;
+  transition:opacity 0.2s;
+}
+#scan-card-type {
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:rgba(255,170,50,0.5);
+  margin-bottom:2px;
+}
+#scan-card-species {
+  font-size:13px;
+  color:rgba(255,200,100,0.95);
+  font-weight:bold;
+  margin-bottom:4px;
+}
+#scan-card-desc {
+  font-size:10px;
+  color:rgba(255,170,50,0.7);
+  margin-bottom:3px;
+}
+#scan-card-traits {
+  font-size:9px;
+  color:rgba(255,170,50,0.5);
+}
+#scan-card-bar {
+  margin-top:5px;
+  height:2px;
+  background:rgba(255,170,50,0.3);
+  border-radius:1px;
+  overflow:hidden;
+}
+#scan-card-bar::after {
+  content:'';
+  display:block;
+  height:100%;
+  width:60%;
+  background:rgba(255,170,50,0.8);
+  animation:scanPulse 1.5s ease-in-out infinite;
+}
+@keyframes scanPulse {
+  0%,100% { width:20%; margin-left:0; }
+  50% { width:60%; margin-left:40%; }
 }
 #waypoint-panel {
   display:none;
@@ -589,6 +655,14 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 
 <div id="scanner-overlay">
   <div id="scanner-readout">SCANNING...</div>
+</div>
+
+<div id="scan-card">
+  <div id="scan-card-type"></div>
+  <div id="scan-card-species"></div>
+  <div id="scan-card-desc"></div>
+  <div id="scan-card-traits"></div>
+  <div id="scan-card-bar"></div>
 </div>
 
 <div id="waypoint-panel">
@@ -895,9 +969,10 @@ if (useDesertPlant) {
         emissive: new THREE.Color(0, 0, 0), emissiveIntensity: 1
       });
       bioMaterials.push({ mat: crystalMat, color: new THREE.Color(0.5, 0.2, 0.05) });
-      const crystal = new THREE.Mesh(new THREE.BoxGeometry(wid, ht, wid * 0.7), crystalMat);
+      var crystal = new THREE.Mesh(new THREE.BoxGeometry(wid, ht, wid * 0.7), crystalMat);
       crystal.position.set(px + (ka-0.5)*1.2, py + ht/2, pz + (kb-0.5)*1.2);
       crystal.rotation.set((ka-0.5)*0.3, ka*Math.PI*2, (kb-0.5)*0.4);
+      if (k === 0) { crystal.userData = {scanType:'plant', species:'Desert Crystal', desc:'Amber silicate formation', traits:'Thermoluminescent | Desert'}; }
       g.add(crystal);
     }
   } else {
@@ -909,9 +984,10 @@ if (useDesertPlant) {
       emissive: new THREE.Color(0, 0, 0), emissiveIntensity: 1
     });
     bioMaterials.push({ mat: spineMat, color: new THREE.Color(0.3, 0.2, 0.1) });
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(spineRad * 0.3, spineRad, spineHt, 5), spineMat);
+    var spine = new THREE.Mesh(new THREE.CylinderGeometry(spineRad * 0.3, spineRad, spineHt, 5), spineMat);
     spine.position.set(px, py + spineHt/2, pz);
     spine.rotation.z = (h3 - 0.5) * 0.15;
+    spine.userData = {scanType:'plant', species:'Desert Spine', desc:'Calcified alien spire', traits:'UV-resistant | Desert'};
     g.add(spine);
   }
 } else {
@@ -935,9 +1011,10 @@ mat.emissive = new THREE.Color(0.0, 0.0, 0.0);
 mat.emissiveIntensity = 1;
 bioMaterials.push({ mat, color: new THREE.Color(0.05, 0.4, 0.9) });
 }
-const m = new THREE.Mesh(new THREE.ConeGeometry(rad, ht, 6), mat);
+var m = new THREE.Mesh(new THREE.ConeGeometry(rad, ht, 6), mat);
 m.position.set(px+(ka-0.5)*0.7, py+ht/2, pz+(kb-0.5)*0.7);
 m.rotation.y = ka * Math.PI * 2;
+if (k === 0) { m.userData = {scanType:'plant', species:'Crystal Spire', desc:'Mineral-based crystalline growth', traits:'Bioluminescent | Common'}; }
 g.add(m);
 }
 } else if (type === 1) {
@@ -960,8 +1037,9 @@ bulbMat.emissive = new THREE.Color(0, 0, 0);
 bulbMat.emissiveIntensity = 1;
 bioMaterials.push({ mat: bulbMat, color: new THREE.Color(0.0, 0.7, 0.3) });
 }
-const bm = new THREE.Mesh(new THREE.SphereGeometry(br, 8, 8), bulbMat);
+var bm = new THREE.Mesh(new THREE.SphereGeometry(br, 8, 8), bulbMat);
 bm.position.set(px, py+sht+br*0.8, pz);
+bm.userData = {scanType:'plant', species:'Bulbous Stalk', desc:'Fungal organism with spore pod', traits:'Bioluminescent | Common'};
 g.add(bm);
 } else {
 const fn = 3 + Math.floor(h1*4);
@@ -978,9 +1056,10 @@ tMat.emissive = new THREE.Color(0, 0, 0);
 tMat.emissiveIntensity = 1;
 bioMaterials.push({ mat: tMat, color: new THREE.Color(0.7, 0.0, 0.6) });
 }
-const tm = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.1, len, 4), tMat);
+var tm = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.1, len, 4), tMat);
 tm.position.set(px+Math.cos(ang)*len*0.4, py+len*0.5, pz+Math.sin(ang)*len*0.4);
 tm.rotation.set(Math.sin(ang)*0.55, 0, Math.cos(ang)*0.55);
+if (k === 0) { tm.userData = {scanType:'plant', species:'Tendril Fan', desc:'Colonial radial tendril array', traits:'Bioluminescent | Common'}; }
 g.add(tm);
 }
 }
@@ -1092,13 +1171,17 @@ starMat
 
 const gasMesh = new THREE.Mesh(new THREE.SphereGeometry(26,24,18), new THREE.MeshBasicMaterial({ color:0x6644bb, fog:false }));
 gasMesh.position.set(180, 150, -300);
+gasMesh.userData = {scanType:'celestial', species:'Kepler-7c', desc:'Ringed gas giant in outer orbit', traits:'Hydrogen-helium | Visible rings'};
 skyGroup.add(gasMesh);
-const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(40,5,4,32), new THREE.MeshBasicMaterial({ color:0x9977dd, transparent:true, opacity:0.4, fog:false }));
+var ringMesh = new THREE.Mesh(new THREE.TorusGeometry(40,5,4,32), new THREE.MeshBasicMaterial({ color:0x9977dd, transparent:true, opacity:0.4, fog:false }));
 ringMesh.position.copy(gasMesh.position); ringMesh.rotation.x = Math.PI/3;
+ringMesh.userData = {scanType:'celestial', species:'Kepler-7c Rings', desc:'Particulate ring system', traits:'Ice and silicate debris'};
 skyGroup.add(ringMesh);
 
-const sunMeshA = new THREE.Mesh(new THREE.SphereGeometry(10,14,10), new THREE.MeshBasicMaterial({ color:0xff7722, fog:false }));
-const sunMeshB = new THREE.Mesh(new THREE.SphereGeometry(7,12,9), new THREE.MeshBasicMaterial({ color:0xfff0cc, fog:false }));
+var sunMeshA = new THREE.Mesh(new THREE.SphereGeometry(10,14,10), new THREE.MeshBasicMaterial({ color:0xff7722, fog:false }));
+sunMeshA.userData = {scanType:'celestial', species:'Kepler-7A', desc:'Primary star, spectral class K2', traits:'Orange dwarf | Binary system'};
+var sunMeshB = new THREE.Mesh(new THREE.SphereGeometry(7,12,9), new THREE.MeshBasicMaterial({ color:0xfff0cc, fog:false }));
+sunMeshB.userData = {scanType:'celestial', species:'Kepler-7B', desc:'Secondary star, spectral class F8', traits:'Yellow-white dwarf | Binary system'};
 skyGroup.add(sunMeshA);
 skyGroup.add(sunMeshB);
 
@@ -1554,9 +1637,14 @@ function updateHotbarUI() {
     slot.classList.toggle('empty', !item);
     icon.textContent = item ? item.icon : '';
     icon.style.opacity = (item && item.active) ? '1' : '0.4';
-    // Color the locator icon to match active waypoint
-    if (item && item.name === 'Locator' && item.active && activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) {
-      icon.style.color = waypoints[activeWaypointIdx].color;
+    // Locator gets a box style + color matching active waypoint
+    icon.classList.toggle('locator-icon', !!(item && item.name === 'Locator'));
+    if (item && item.name === 'Locator') {
+      if (item.active && activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) {
+        icon.style.color = waypoints[activeWaypointIdx].color;
+      } else {
+        icon.style.color = 'rgba(200,170,255,0.5)';
+      }
     } else if (item) {
       icon.style.color = '';
     }
@@ -1624,8 +1712,8 @@ updateHotbarUI();
 
 // ── Waypoint System ──────────────────────────────────────────
 var waypoints = [];
-waypoints.push({ name: 'Spawn', x: 0, z: 0, color: '#ffffff', type: 'fixed' });
 waypoints.push({ name: 'Ancient Signal', x: 150, z: 170, color: '#44ff88', type: 'chip' });
+waypoints.push({ name: 'Spawn', x: 0, z: 0, color: '#ffffff', type: 'fixed' });
 
 var activeWaypointIdx = -1;
 var locatorActive = false;
@@ -1855,10 +1943,12 @@ var ruinStoneMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.22, 
 
 var gp1 = new THREE.Mesh(new THREE.CylinderGeometry(20,20,0.1,16), ruinStoneMat);
 gp1.position.set(ARTIFACT_X, artifactTerrY + 0.05, ARTIFACT_Z);
+gp1.userData = {scanType:'structure', species:'Ancient Foundation', desc:'Circular stone platform of unknown origin', traits:'Pre-colonial | Alien construction'};
 scene.add(gp1);
 
 var plat1 = new THREE.Mesh(new THREE.CylinderGeometry(3,3.3,0.8,12), ruinStoneMat);
 plat1.position.set(ARTIFACT_X, artifactTerrY + 0.4, ARTIFACT_Z);
+plat1.userData = {scanType:'structure', species:'Ceremonial Platform', desc:'Raised ritual platform with alignment rings', traits:'Intact | Energy signatures detected'};
 scene.add(plat1);
 
 var plat2 = new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,0.3,8), ruinStoneMat);
@@ -1867,6 +1957,7 @@ scene.add(plat2);
 
 var ped1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.25,1.5,6), ruinStoneMat);
 ped1.position.set(ARTIFACT_X, artifactTerrY + 1.85, ARTIFACT_Z);
+ped1.userData = {scanType:'structure', species:'Artifact Pedestal', desc:'Crystalline focusing column', traits:'Active | Unknown power source'};
 scene.add(ped1);
 
 var crystMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.6 });
@@ -1879,6 +1970,7 @@ for (var ci=0; ci<6; ci++) {
   var ang = (ci/6)*Math.PI*2;
   var cm = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,colH[ci],8), ruinStoneMat);
   cm.position.set(ARTIFACT_X+Math.cos(ang)*4.5, artifactTerrY+colH[ci]/2, ARTIFACT_Z+Math.sin(ang)*4.5);
+  cm.userData = {scanType:'structure', species:'Broken Column', desc:'Structural support remnant', traits:'Weathered | Partial collapse'};
   scene.add(cm);
 }
 
@@ -1888,6 +1980,7 @@ for (var ni=0; ni<nwD.length; ni++) {
   var nd = nwD[ni];
   var nw = new THREE.Mesh(new THREE.BoxGeometry(nd[2],nd[3],0.5), ruinStoneMat);
   nw.position.set(ARTIFACT_X+nd[0], artifactTerrY+nd[3]/2, ARTIFACT_Z+nd[1]);
+  nw.userData = {scanType:'structure', species:'Wall Fragment', desc:'Remnant of perimeter structure', traits:'Weathered | Age: indeterminate'};
   scene.add(nw);
   wallColliders.push({minX:ARTIFACT_X+nd[0]-nd[2]/2, maxX:ARTIFACT_X+nd[0]+nd[2]/2, minZ:ARTIFACT_Z+nd[1]-0.25, maxZ:ARTIFACT_Z+nd[1]+0.25});
 }
@@ -1895,6 +1988,7 @@ for (var ni=0; ni<nwD.length; ni++) {
 // Monolith + floating ring
 var mono = new THREE.Mesh(new THREE.BoxGeometry(0.6,5,0.6), ruinStoneMat);
 mono.position.set(ARTIFACT_X-8, artifactTerrY+2.5, ARTIFACT_Z-10);
+mono.userData = {scanType:'structure', species:'Alien Monolith', desc:'Perfectly geometric obsidian column', traits:'Anomalous | Non-native material'};
 scene.add(mono);
 var monolithRing = new THREE.Mesh(new THREE.TorusGeometry(0.8,0.1,8,16), crystMat);
 monolithRing.position.set(ARTIFACT_X-8, artifactTerrY+6, ARTIFACT_Z-10);
@@ -2103,6 +2197,10 @@ var tricorderItem = {
       this.active = false;
       scannerActive = false;
       if (scannerOverlay) scannerOverlay.style.display = 'none';
+      hideScanCard();
+      clearScanHighlight();
+      scanLockTarget = null;
+      lastScannedObj = null;
       showPickupNotification('Scanner off');
     } else {
       this.active = true;
@@ -2114,8 +2212,123 @@ var tricorderItem = {
     this.active = false;
     scannerActive = false;
     if (scannerOverlay) scannerOverlay.style.display = 'none';
+    hideScanCard();
+    clearScanHighlight();
+    scanLockTarget = null;
+    lastScannedObj = null;
   }
 };
+
+// ── Scanner Raycast System ────────────────────────────────────
+var scanRaycaster = new THREE.Raycaster();
+var scanCenter = new THREE.Vector2(0, 0);
+var lastScannedObj = null;
+var scanCardVisible = false;
+
+var scanCard = null;
+var scanCardType = null;
+var scanCardSpecies = null;
+var scanCardDesc = null;
+var scanCardTraits = null;
+
+// ── Scan Wireframe Highlight ──────────────────────────────────
+var scanHighlightMesh = null;
+var scanHighlightMat = new THREE.MeshBasicMaterial({
+  color: 0xffaa33, wireframe: true, transparent: true, opacity: 0.5
+});
+
+function setScanHighlight(targetMesh) {
+  clearScanHighlight();
+  if (!targetMesh || !targetMesh.geometry) return;
+  scanHighlightMesh = new THREE.Mesh(targetMesh.geometry, scanHighlightMat);
+  var wp = new THREE.Vector3();
+  var wq = new THREE.Quaternion();
+  var ws = new THREE.Vector3();
+  targetMesh.getWorldPosition(wp);
+  targetMesh.getWorldQuaternion(wq);
+  targetMesh.getWorldScale(ws);
+  scanHighlightMesh.position.copy(wp);
+  scanHighlightMesh.quaternion.copy(wq);
+  scanHighlightMesh.scale.copy(ws);
+  scanHighlightMesh.scale.multiplyScalar(1.15);
+  scene.add(scanHighlightMesh);
+}
+
+function updateScanHighlight(targetMesh) {
+  if (!scanHighlightMesh || !targetMesh) return;
+  var wp = new THREE.Vector3();
+  var wq = new THREE.Quaternion();
+  var ws = new THREE.Vector3();
+  targetMesh.getWorldPosition(wp);
+  targetMesh.getWorldQuaternion(wq);
+  targetMesh.getWorldScale(ws);
+  scanHighlightMesh.position.copy(wp);
+  scanHighlightMesh.quaternion.copy(wq);
+  scanHighlightMesh.scale.copy(ws);
+  scanHighlightMesh.scale.multiplyScalar(1.15);
+}
+
+function clearScanHighlight() {
+  if (scanHighlightMesh) {
+    scene.remove(scanHighlightMesh);
+    scanHighlightMesh.geometry = null; // don't dispose - it's shared
+    scanHighlightMesh = null;
+  }
+}
+
+// ── Scan Lock-on System ───────────────────────────────────────
+var scanLockTarget = null;
+var scanLockTimer = 0;
+
+// Cast rays in a small spread pattern around center
+var scanOffsets = [
+  [0, 0],
+  [0.03, 0], [-0.03, 0], [0, 0.03], [0, -0.03],
+  [0.02, 0.02], [-0.02, 0.02], [0.02, -0.02], [-0.02, -0.02]
+];
+
+var _scanCheckVec = new THREE.Vector3();
+
+function isLockValid() {
+  if (!scanLockTarget) return false;
+  // Check the mesh is still in the scene
+  if (!scanLockTarget.parent) return false;
+  scanLockTarget.getWorldPosition(_scanCheckVec);
+  // Celestial objects can be very far
+  var maxDist = (scanLockTarget.userData && scanLockTarget.userData.scanType === 'celestial') ? 700 : 50;
+  if (camera.position.distanceTo(_scanCheckVec) > maxDist) return false;
+  // Check if roughly on screen (generous bounds to maintain lock)
+  _scanCheckVec.project(camera);
+  if (Math.abs(_scanCheckVec.x) > 1.2 || Math.abs(_scanCheckVec.y) > 1.2 || _scanCheckVec.z > 1) return false;
+  return true;
+}
+
+function initScanCard() {
+  scanCard = document.getElementById('scan-card');
+  scanCardType = document.getElementById('scan-card-type');
+  scanCardSpecies = document.getElementById('scan-card-species');
+  scanCardDesc = document.getElementById('scan-card-desc');
+  scanCardTraits = document.getElementById('scan-card-traits');
+}
+
+function showScanCard(data) {
+  if (!scanCard) initScanCard();
+  var typeLabel = '◆ UNKNOWN';
+  if (data.scanType === 'plant') typeLabel = '◆ FLORA';
+  else if (data.scanType === 'creature') typeLabel = '◆ FAUNA';
+  else if (data.scanType === 'celestial') typeLabel = '◆ CELESTIAL';
+  else if (data.scanType === 'structure') typeLabel = '◆ STRUCTURE';
+  scanCardType.textContent = typeLabel;
+  scanCardSpecies.textContent = data.species;
+  scanCardDesc.textContent = data.desc;
+  scanCardTraits.textContent = data.traits;
+  scanCard.style.display = 'block';
+}
+
+function hideScanCard() {
+  if (!scanCard) initScanCard();
+  scanCard.style.display = 'none';
+}
 
 // ── Wall Collision System ─────────────────────────────────────
 const PLAYER_RADIUS = 0.5;
@@ -3019,11 +3232,12 @@ function createJellyfish(px, pz) {
     emissive: new THREE.Color(0.05, 0.15, 0.2), emissiveIntensity: 1
   });
   bioMaterials.push({ mat: domeMat, color: new THREE.Color(0.25, 0.6, 0.8), baseEmissive: new THREE.Color(0.05, 0.15, 0.2) });
-  const dome = new THREE.Mesh(
+  var dome = new THREE.Mesh(
     new THREE.SphereGeometry(domeRadius, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
     domeMat
   );
   dome.scale.y = 0.6;
+  dome.userData = {scanType:'creature', species:'Kepler Drift-Jelly', desc:'Atmospheric cnidarian', traits:'Docile | Bioluminescent'};
   group.add(dome);
 
   // Tendrils
@@ -3181,11 +3395,12 @@ function createSchool(cx, cz) {
     });
     bioMaterials.push({ mat, color: emissiveColor });
     // Fish body: elongated sphere
-    const bodyGeo = new THREE.SphereGeometry(0.2, 6, 4);
-    const mesh = new THREE.Mesh(bodyGeo, mat);
+    var bodyGeo = new THREE.SphereGeometry(0.2, 6, 4);
+    var mesh = new THREE.Mesh(bodyGeo, mat);
     mesh.scale.set(1.8, 0.7, 0.9);
     // Scatter within school radius
     mesh.position.set((Math.random()-0.5)*4, (Math.random()-0.5)*1.5, (Math.random()-0.5)*4);
+    mesh.userData = {scanType:'creature', species:'Biolume Schooler', desc:'Aquatic colonial fish', traits:'Passive | Schooling'};
     group.add(mesh);
     fish.push({
       mesh,
@@ -3328,12 +3543,13 @@ function createGroundCreature(px, pz) {
   });
   bioMaterials.push({ mat: bodyMat, color: new THREE.Color(0.5, 0.25, 0.08) });
 
-  const mesh = new THREE.Mesh(
+  var mesh = new THREE.Mesh(
     new THREE.SphereGeometry(0.2, 6, 4),
     bodyMat
   );
   mesh.scale.set(1, 0.4, 1);
   mesh.position.set(px, terrainH + 0.1, pz);
+  mesh.userData = {scanType:'creature', species:'Surface Skitterer', desc:'Nocturnal arthropod', traits:'Timid | Ground-dwelling'};
   scene.add(mesh);
 
   return {
@@ -3722,6 +3938,93 @@ if (scannerActive && scannerOverlay) {
   scanText += 'WATER: ' + (terrH < WATER_LEVEL ? 'SUBMERGED' : 'ABOVE') + '\n';
   scanText += 'BIO-LUM: ' + Math.round((1 - currentDayF) * 100) + '%';
   scannerReadout.textContent = scanText;
+}
+
+// Scanner raycast for scan card (cone search + lock-on + wireframe highlight)
+if (scannerActive && started) {
+  var foundScan = null;
+
+  // First: try center ray at long range (for celestial objects at 600 units)
+  scanRaycaster.setFromCamera(scanCenter, camera);
+  scanRaycaster.far = 600;
+  var centerHits = scanRaycaster.intersectObjects(scene.children, true);
+  for (var shi = 0; shi < centerHits.length; shi++) {
+    var sObj = centerHits[shi].object;
+    while (sObj && !(sObj.userData && sObj.userData.scanType)) {
+      sObj = sObj.parent;
+    }
+    if (sObj && sObj.userData && sObj.userData.scanType) {
+      foundScan = sObj;
+      break;
+    }
+  }
+
+  // If center ray missed, try spread pattern for nearby objects (< 30 units)
+  if (!foundScan) {
+    var _scanPt = new THREE.Vector2();
+    for (var soi = 1; soi < scanOffsets.length; soi++) {
+      _scanPt.x = scanOffsets[soi][0];
+      _scanPt.y = scanOffsets[soi][1];
+      scanRaycaster.setFromCamera(_scanPt, camera);
+      scanRaycaster.far = 30;
+      var spreadHits = scanRaycaster.intersectObjects(scene.children, true);
+      for (var shi2 = 0; shi2 < spreadHits.length; shi2++) {
+        var sObj2 = spreadHits[shi2].object;
+        while (sObj2 && !(sObj2.userData && sObj2.userData.scanType)) {
+          sObj2 = sObj2.parent;
+        }
+        if (sObj2 && sObj2.userData && sObj2.userData.scanType) {
+          foundScan = sObj2;
+          break;
+        }
+      }
+      if (foundScan) break;
+    }
+  }
+
+  // Lock-on logic
+  if (foundScan) {
+    if (scanLockTarget !== foundScan) {
+      // New target found - switch lock
+      scanLockTarget = foundScan;
+      scanLockTimer = 0;
+    }
+    scanLockTimer += dt;
+  } else {
+    // No direct hit - check if lock is still valid
+    if (scanLockTarget && isLockValid()) {
+      // Keep lock, just increment timer
+      scanLockTimer += dt;
+    } else {
+      // Lock lost
+      scanLockTarget = null;
+      scanLockTimer = 0;
+    }
+  }
+
+  // Display based on lock state
+  if (scanLockTarget && scanLockTarget.userData && scanLockTarget.userData.scanType) {
+    showScanCard(scanLockTarget.userData);
+
+    if (lastScannedObj !== scanLockTarget) {
+      // New target - set up wireframe highlight
+      setScanHighlight(scanLockTarget);
+      lastScannedObj = scanLockTarget;
+    } else {
+      // Same target - update highlight position (follows moving creatures)
+      updateScanHighlight(scanLockTarget);
+    }
+  } else {
+    hideScanCard();
+    clearScanHighlight();
+    lastScannedObj = null;
+  }
+} else if (lastScannedObj) {
+  // Scanner turned off
+  clearScanHighlight();
+  scanLockTarget = null;
+  lastScannedObj = null;
+  hideScanCard();
 }
 
 // Pickup notification timer

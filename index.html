@@ -446,31 +446,33 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #scan-card {
   display:none;
   position:absolute;
-  right:15px;
-  bottom:155px;
-  width:280px;
+  right:45px;
+  bottom:112px;
+  width:240px;
   box-sizing:border-box;
-  background:rgba(20,6,45,0.92);
-  background-image:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,170,50,0.013) 3px,rgba(255,170,50,0.013) 4px);
-  border:1px solid rgba(255,170,50,0.42);
-  border-bottom:1px solid rgba(255,170,50,0.22);
-  border-radius:8px 8px 3px 3px;
-  padding:8px 12px 8px 8px;
+  background:rgba(6,2,14,0.52);
+  border:2px solid rgba(255,170,50,0.72);
+  border-radius:6px;
+  padding:8px 10px 8px 8px;
   font-family:monospace;
-  color:rgba(255,170,50,0.9);
+  color:rgba(255,185,65,0.95);
   pointer-events:none;
   z-index:8;
   transition:opacity 0.2s;
   align-items:flex-start;
-  gap:10px;
+  gap:8px;
+  box-shadow:0 0 14px rgba(255,160,40,0.22), inset 0 0 18px rgba(255,140,20,0.06);
+}
+#scan-card-text {
+  text-shadow:0 1px 3px rgba(0,0,0,0.95);
 }
 #held-device-wrap {
   display:none;
   position:absolute;
-  right:15px;
-  bottom:-120px;
-  width:280px;
-  height:340px;
+  right:10px;
+  bottom:-200px;
+  width:320px;
+  height:520px;
   pointer-events:none;
   z-index:7;
 }
@@ -478,8 +480,8 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   position:absolute;
   top:0; left:0;
   width:100%; height:100%;
-  border-left:1px solid rgba(255,170,50,0.13);
-  border-right:1px solid rgba(255,170,50,0.13);
+  border-left:1px solid rgba(255,170,50,0.12);
+  border-right:1px solid rgba(255,170,50,0.12);
   border-bottom:1px solid rgba(255,170,50,0.1);
   border-radius:0 0 10px 10px;
 }
@@ -2684,34 +2686,38 @@ function hideScanCard() {
 function initHeldDevice() {
   var canvas = document.getElementById('held-device-canvas');
   if (!canvas || heldDeviceRenderer) return;
+  var W = 320, H = 520;
   heldDeviceRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
   heldDeviceRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  heldDeviceRenderer.setSize(280, 340, false);
+  heldDeviceRenderer.setSize(W, H, false);
   heldDeviceRenderer.setClearColor(0x000000, 0);
   heldDeviceScene = new THREE.Scene();
-  heldDeviceCamera = new THREE.PerspectiveCamera(42, 280 / 340, 0.01, 20);
-  heldDeviceCamera.position.set(0.05, 0.10, 0.50);
-  heldDeviceCamera.lookAt(0, -0.08, 0);
-  var hdAmb = new THREE.AmbientLight(0x503020, 0.7);
+  heldDeviceCamera = new THREE.PerspectiveCamera(65, W / H, 0.01, 20);
+  heldDeviceCamera.position.set(0.06, 0.18, 0.40);
+  heldDeviceCamera.lookAt(0, 0.12, 0);
+  // Warm key from above-left, cool fill from behind, amber screen glow
+  var hdAmb = new THREE.AmbientLight(0x503020, 0.65);
   heldDeviceScene.add(hdAmb);
-  var hdKey = new THREE.DirectionalLight(0xffcc88, 1.0);
-  hdKey.position.set(0.5, 2, 2);
+  var hdKey = new THREE.DirectionalLight(0xffcc88, 1.1);
+  hdKey.position.set(-0.5, 2.5, 2);
   heldDeviceScene.add(hdKey);
-  var hdFill = new THREE.DirectionalLight(0x334466, 0.4);
-  hdFill.position.set(-1, -1, -2);
+  var hdFill = new THREE.DirectionalLight(0x334466, 0.35);
+  hdFill.position.set(1, -1, -2);
   heldDeviceScene.add(hdFill);
-  var hdScreen = new THREE.PointLight(0xffaa33, 0.7, 2);
-  hdScreen.position.set(0, 0.18, 0.28);
+  var hdScreen = new THREE.PointLight(0xffaa33, 1.2, 1.5);
+  hdScreen.position.set(0, 0.28, 0.30);
   heldDeviceScene.add(hdScreen);
-  // Build tricorder body for held view
-  var bMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
-  var fMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
-  var scrMat = new THREE.MeshBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.75 });
+  // Materials
+  var bMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
+  var fMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
+  // Screen: dark base + amber emissive so the card reads on top of a glowing surface
+  var scrMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.02, 0.01, 0.00), emissive: new THREE.Color(0.38, 0.20, 0.02), emissiveIntensity: 0.9 });
   var blkMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.06, 0.06, 0.08) });
   var r1Mat  = new THREE.MeshBasicMaterial({ color: 0xff4444 });
   var b1Mat  = new THREE.MeshBasicMaterial({ color: 0x4488ff });
   var gMat   = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
-  var slotMat = new THREE.MeshBasicMaterial({ color: 0x050508 });
+  var slotMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.03, 0.03, 0.04) });
+  // Build tricorder at 1.5× scale
   var body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.08), bMat);
   var flip = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.06), fMat);
   flip.position.set(0, 0.25, 0.03);
@@ -2738,7 +2744,8 @@ function initHeldDevice() {
   ball.position.set(0, 0.67, 0);
   body.add(ball);
   body.add(flip);
-  body.position.set(0, -0.13, 0);
+  body.scale.set(1.5, 1.5, 1.5);
+  body.position.set(0, -0.15, 0);
   body.rotation.set(-0.12, -0.22, 0.05);
   heldDeviceScene.add(body);
   heldDeviceMesh = body;
@@ -4791,7 +4798,7 @@ if (scannerActive && previewRenderer && previewMesh && previewScene && previewCa
 if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
   heldDeviceMesh.rotation.y = -0.22 + Math.sin(now * 0.00075) * 0.022;
   heldDeviceMesh.rotation.z =  0.05 + Math.cos(now * 0.00055) * 0.010;
-  heldDeviceMesh.position.y = -0.13 + Math.sin(now * 0.00095) * 0.005;
+  heldDeviceMesh.position.y = -0.15 + Math.sin(now * 0.00095) * 0.005;
   heldDeviceRenderer.render(heldDeviceScene, heldDeviceCamera);
 }
 

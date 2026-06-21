@@ -469,13 +469,17 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #held-device-wrap {
   display:none;
   position:absolute;
-  right:0px;
-  bottom:-235px;
   width:395px;
   height:500px;
-  pointer-events:none;
+  pointer-events:auto;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  cursor:grab;
+  transform-origin:top left;
   z-index:7;
 }
+#held-device-wrap:active { cursor:grabbing; }
 #held-device-canvas {
   position:absolute;
   top:0; left:0;
@@ -484,7 +488,25 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   border-right:1px solid rgba(255,170,50,0.12);
   border-bottom:1px solid rgba(255,170,50,0.1);
   border-radius:0 0 10px 10px;
+  pointer-events:none;
 }
+#device-reset-btn {
+  position:absolute;
+  top:8px; right:8px;
+  z-index:8;
+  background:rgba(20,6,45,0.7);
+  border:1px solid rgba(255,170,50,0.28);
+  color:rgba(255,170,50,0.55);
+  font-size:11px;
+  padding:3px 7px;
+  cursor:pointer;
+  border-radius:3px;
+  font-family:monospace;
+  letter-spacing:0.06em;
+  pointer-events:auto;
+  line-height:1.4;
+}
+#device-reset-btn:hover { background:rgba(40,12,80,0.9); color:rgba(255,190,70,0.9); }
 #scan-card-text {
   flex:1;
   min-width:130px;
@@ -735,7 +757,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
     <div id="scan-card-bar"></div>
   </div>
 </div>
-<div id="held-device-wrap"><canvas id="held-device-canvas"></canvas></div>
+<div id="held-device-wrap"><canvas id="held-device-canvas"></canvas><button id="device-reset-btn" title="Reset position &amp; size">↺</button></div>
 
 <div id="waypoint-panel">
   <div id="waypoint-panel-header">LOCATIONS</div>
@@ -2615,6 +2637,10 @@ var previewRotY = 0;
 var heldDeviceRenderer = null, heldDeviceScene = null, heldDeviceCamera = null, heldDeviceMesh = null;
 var heldDeviceScreenCanvas = null, heldDeviceScrCtx = null, heldDeviceScreenTexture = null;
 var heldDeviceScanData = null;
+var hdLeft = 0, hdTop = 0, hdScale = 1.0;
+var hdDragging = false, hdDragStartX = 0, hdDragStartY = 0, hdDragStartLeft = 0, hdDragStartTop = 0;
+var hdPinching = false, hdPinchDist0 = 0, hdPinchScale0 = 0, hdPinchLeft0 = 0, hdPinchTop0 = 0, hdPinchMidX = 0, hdPinchMidY = 0;
+var hdLastTap = 0, hdInteractionInit = false;
 
 // Cast rays in a small spread pattern around center
 var scanOffsets = [
@@ -2674,6 +2700,120 @@ function showScanCard(data) {
 
 function hideScanCard() {
   heldDeviceScanData = null;
+}
+
+function hdDefaultPos() {
+  return { left: window.innerWidth - 395, top: window.innerHeight - 265, scale: 1.0 };
+}
+function hdClamp(l, t, s) {
+  var margin = 60;
+  s = Math.max(0.35, Math.min(2.5, s));
+  l = Math.max(-395 * s + margin, Math.min(window.innerWidth  - margin, l));
+  t = Math.max(-500 * s + margin, Math.min(window.innerHeight - margin, t));
+  return { left: l, top: t, scale: s };
+}
+function hdApply() {
+  var hw = document.getElementById('held-device-wrap');
+  if (!hw) return;
+  hw.style.left = Math.round(hdLeft) + 'px';
+  hw.style.top  = Math.round(hdTop)  + 'px';
+  hw.style.transform = 'scale(' + hdScale + ')';
+}
+function hdSave() {
+  try { localStorage.setItem('kpx_dev', JSON.stringify({ l: hdLeft, t: hdTop, s: hdScale })); } catch(e) {}
+}
+function hdLoad() {
+  try {
+    var raw = localStorage.getItem('kpx_dev');
+    if (raw) { var d = JSON.parse(raw); hdLeft = d.l; hdTop = d.t; hdScale = d.s; return; }
+  } catch(e) {}
+  var def = hdDefaultPos();
+  hdLeft = def.left; hdTop = def.top; hdScale = def.scale;
+}
+function hdReset() {
+  var def = hdDefaultPos();
+  hdLeft = def.left; hdTop = def.top; hdScale = def.scale;
+  hdApply(); hdSave();
+}
+function initDeviceInteraction() {
+  if (hdInteractionInit) return;
+  hdInteractionInit = true;
+  var hw = document.getElementById('held-device-wrap');
+  if (!hw) return;
+  hdLoad(); hdApply();
+  var rb = document.getElementById('device-reset-btn');
+  if (rb) rb.addEventListener('click', function(e) { e.stopPropagation(); hdReset(); });
+  // ── Touch: drag (1 finger) + pinch-scale (2 fingers) + double-tap reset ──
+  hw.addEventListener('touchstart', function(e) {
+    e.stopPropagation();
+    if (e.touches.length === 1) {
+      hdDragging = true; hdPinching = false;
+      hdDragStartX = e.touches[0].clientX; hdDragStartY = e.touches[0].clientY;
+      hdDragStartLeft = hdLeft; hdDragStartTop = hdTop;
+      var now2 = Date.now();
+      if (now2 - hdLastTap < 300) { hdReset(); }
+      hdLastTap = now2;
+    } else if (e.touches.length >= 2) {
+      hdDragging = false; hdPinching = true;
+      var t1 = e.touches[0], t2 = e.touches[1];
+      hdPinchDist0  = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      hdPinchScale0 = hdScale;
+      hdPinchLeft0  = hdLeft; hdPinchTop0 = hdTop;
+      hdPinchMidX   = (t1.clientX + t2.clientX) * 0.5;
+      hdPinchMidY   = (t1.clientY + t2.clientY) * 0.5;
+    }
+  }, { passive: false });
+  hw.addEventListener('touchmove', function(e) {
+    e.stopPropagation(); e.preventDefault();
+    if (hdDragging && e.touches.length === 1) {
+      var dx = e.touches[0].clientX - hdDragStartX;
+      var dy = e.touches[0].clientY - hdDragStartY;
+      var c = hdClamp(hdDragStartLeft + dx, hdDragStartTop + dy, hdScale);
+      hdLeft = c.left; hdTop = c.top; hdApply();
+    } else if (hdPinching && e.touches.length >= 2) {
+      var t1 = e.touches[0], t2 = e.touches[1];
+      var dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      var newScale = Math.max(0.35, Math.min(2.5, hdPinchScale0 * dist / hdPinchDist0));
+      var ratio    = newScale / hdPinchScale0;
+      var c = hdClamp(hdPinchMidX + (hdPinchLeft0 - hdPinchMidX) * ratio,
+                      hdPinchMidY + (hdPinchTop0  - hdPinchMidY) * ratio, newScale);
+      hdLeft = c.left; hdTop = c.top; hdScale = c.scale; hdApply();
+    }
+  }, { passive: false });
+  hw.addEventListener('touchend', function(e) {
+    e.stopPropagation();
+    if (e.touches.length === 0) { hdDragging = false; hdPinching = false; hdSave(); }
+    else if (e.touches.length === 1 && hdPinching) {
+      hdPinching = false; hdDragging = true;
+      hdDragStartX = e.touches[0].clientX; hdDragStartY = e.touches[0].clientY;
+      hdDragStartLeft = hdLeft; hdDragStartTop = hdTop;
+    }
+  }, { passive: false });
+  // ── Mouse: drag + scroll-to-scale + double-click reset ──
+  hw.addEventListener('mousedown', function(e) {
+    e.stopPropagation();
+    hdDragging = true;
+    hdDragStartX = e.clientX; hdDragStartY = e.clientY;
+    hdDragStartLeft = hdLeft; hdDragStartTop = hdTop;
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!hdDragging) return;
+    var c = hdClamp(hdDragStartLeft + e.clientX - hdDragStartX,
+                    hdDragStartTop  + e.clientY - hdDragStartY, hdScale);
+    hdLeft = c.left; hdTop = c.top; hdApply();
+  });
+  document.addEventListener('mouseup', function() {
+    if (hdDragging) { hdDragging = false; hdSave(); }
+  });
+  hw.addEventListener('wheel', function(e) {
+    e.stopPropagation(); e.preventDefault();
+    var newScale = Math.max(0.35, Math.min(2.5, hdScale * (e.deltaY < 0 ? 1.1 : 0.909)));
+    var ratio    = newScale / hdScale;
+    var c = hdClamp(e.clientX + (hdLeft - e.clientX) * ratio,
+                    e.clientY + (hdTop  - e.clientY) * ratio, newScale);
+    hdLeft = c.left; hdTop = c.top; hdScale = c.scale; hdApply(); hdSave();
+  }, { passive: false });
+  hw.addEventListener('dblclick', function(e) { e.stopPropagation(); hdReset(); });
 }
 
 function initHeldDevice() {
@@ -2743,6 +2883,7 @@ function initHeldDevice() {
   body.rotation.set(-0.49, 0.03, -0.02);
   heldDeviceScene.add(body);
   heldDeviceMesh = body;
+  initDeviceInteraction();
 }
 
 function hdFillWrapped(ctx, text, x, y, maxW, lineH) {
@@ -2802,10 +2943,21 @@ function drawHeldDeviceScreen(now) {
   var innerW = w - (bw + pad) * 2;
   var col    = Math.round(innerW / 3);
   var x0 = bw + pad, x1 = x0 + col, x2 = x0 + col * 2;
+
+  // Ambient readings — always shown in lower section
+  var biomeV     = getBiomeVal(camera.position.x, camera.position.z);
+  var biomeName  = biomeV > 0.55 ? 'CRYSTAL DESERT' : biomeV > 0.45 ? 'TRANSITION' : 'PURPLE HIGHLANDS';
+  var stormIv    = getStormIntensity(camera.position.x, camera.position.z);
+  var weatherStr = 'CLEAR';
+  if (stormIv > 0.5) weatherStr = 'HEAVY STORM';
+  else if (stormIv > 0.2) weatherStr = 'STORM';
+  else if (stormIv > 0.05) weatherStr = 'LIGHT RAIN';
+  var bioLum = Math.round((1 - currentDayF) * 100);
+
   var data = heldDeviceScanData;
 
   if (data) {
-    // ── HAS TARGET: creature info upper, DIST/SIGNAL/RISK lower ─────────
+    // ── HAS TARGET: creature info in upper section ───────────────────────
     var topY = bw + pad;
     ctx.fillStyle = 'rgba(255,170,50,0.48)';
     ctx.font = Math.round(fs * 0.58) + 'px monospace';
@@ -2845,62 +2997,29 @@ function drawHeldDeviceScreen(now) {
     ctx.fillStyle = 'rgba(255,170,50,0.48)';
     ctx.font = tnFS + 'px monospace';
     ctx.fillText(data.traits, textX, textY);
-
-    // Lower: DIST / SIGNAL / RISK
-    ctx.fillStyle = 'rgba(255,170,50,0.38)';
-    ctx.font = lbFS + 'px monospace';
-    ctx.textBaseline = 'top';
-    ctx.fillText('DIST', x0, loY);
-    ctx.fillText('SIGNAL', x1, loY);
-    ctx.fillText('RISK', x2, loY);
-    var valY = loY + lbFS + Math.round(4 * R);
-    ctx.fillStyle = 'rgba(255,200,100,0.90)';
-    ctx.font = 'bold ' + loFS + 'px monospace';
-    ctx.fillText('??m', x0, valY);
-    var sbH = Math.round(loFS * 0.62);
-    var sbW = Math.round(col * 0.75);
-    ctx.fillStyle = 'rgba(255,170,50,0.14)';
-    ctx.fillRect(x1, valY, sbW, sbH);
-    ctx.fillStyle = 'rgba(255,170,50,0.78)';
-    ctx.fillRect(x1, valY, Math.round(sbW * 0.73), sbH);
-    ctx.fillStyle = 'rgba(255,200,100,0.88)';
-    ctx.font = lbFS + 'px monospace';
-    ctx.fillText('73%', x1 + sbW + Math.round(4 * R), valY);
-    ctx.fillStyle = 'rgba(70,220,70,0.88)';
-    ctx.font = 'bold ' + loFS + 'px monospace';
-    ctx.fillText('LOW', x2, valY);
-
-  } else {
-    // ── NO TARGET: blank upper, ambient readings lower ───────────────────
-    var biomeV     = getBiomeVal(camera.position.x, camera.position.z);
-    var biomeName  = biomeV > 0.55 ? 'CRYSTAL DESERT' : biomeV > 0.45 ? 'TRANSITION' : 'PURPLE HIGHLANDS';
-    var stormIv    = getStormIntensity(camera.position.x, camera.position.z);
-    var weatherStr = 'CLEAR';
-    if (stormIv > 0.5) weatherStr = 'HEAVY STORM';
-    else if (stormIv > 0.2) weatherStr = 'STORM';
-    else if (stormIv > 0.05) weatherStr = 'LIGHT RAIN';
-    var bioLum = Math.round((1 - currentDayF) * 100);
-
-    ctx.fillStyle = 'rgba(255,170,50,0.38)';
-    ctx.font = lbFS + 'px monospace';
-    ctx.textBaseline = 'top';
-    ctx.fillText('BIOME', x0, loY);
-    ctx.fillText('WEATHER', x1, loY);
-    ctx.fillText('BIO-LUM', x2, loY);
-    var valY2 = loY + lbFS + Math.round(4 * R);
-    ctx.fillStyle = 'rgba(255,200,100,0.90)';
-    ctx.font = loFS + 'px monospace';
-    hdFillWrapped(ctx, biomeName, x0, valY2, col - Math.round(8 * R), loFS + 2);
-    ctx.fillText(weatherStr, x1, valY2);
-    ctx.fillStyle = bioLum > 50 ? 'rgba(120,240,160,0.90)' : 'rgba(255,200,100,0.90)';
-    ctx.font = 'bold ' + loFS + 'px monospace';
-    ctx.fillText(bioLum + '%', x2, valY2);
   }
+  // else: upper section blank
 
-  // Section divider (always)
+  // ── SECTION DIVIDER (always) ────────────────────────────────────────────
   ctx.strokeStyle = 'rgba(255,170,50,0.18)';
   ctx.lineWidth = Math.max(1, Math.round(R));
   ctx.beginPath(); ctx.moveTo(bw + pad, divY); ctx.lineTo(w - bw - pad, divY); ctx.stroke();
+
+  // ── LOWER SECTION: BIOME / WEATHER / BIO-LUM (always) ──────────────────
+  ctx.fillStyle = 'rgba(255,170,50,0.38)';
+  ctx.font = lbFS + 'px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillText('BIOME', x0, loY);
+  ctx.fillText('WEATHER', x1, loY);
+  ctx.fillText('BIO-LUM', x2, loY);
+  var valY = loY + lbFS + Math.round(4 * R);
+  ctx.fillStyle = 'rgba(255,200,100,0.90)';
+  ctx.font = loFS + 'px monospace';
+  hdFillWrapped(ctx, biomeName, x0, valY, col - Math.round(8 * R), loFS + 2);
+  ctx.fillText(weatherStr, x1, valY);
+  ctx.fillStyle = bioLum > 50 ? 'rgba(120,240,160,0.90)' : 'rgba(255,200,100,0.90)';
+  ctx.font = 'bold ' + loFS + 'px monospace';
+  ctx.fillText(bioLum + '%', x2, valY);
 
   // Full-width animated scan bar (always)
   var barH  = Math.round(5 * R);

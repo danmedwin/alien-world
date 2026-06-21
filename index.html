@@ -4455,8 +4455,7 @@ if (!beaconPickedUp) {
     addToInventory(locatorItem);
     var _lSlot = inventory.indexOf(locatorItem);
     if (_lSlot >= 0) {
-      selectSlot(_lSlot);
-      useActiveItem();
+      selectSlot(_lSlot); // auto-activates via autoActivate flag
       var _lN = _lSlot + 1;
       setTimeout(function() { showPickupNotification(MOBILE ? 'Tap slot ' + _lN + ' to deactivate' : 'Press ' + _lN + ' to deactivate'); }, 1500);
     }
@@ -4537,8 +4536,7 @@ if (tricorderSpawned && !tricorderPickedUp && tricorderMesh) {
     tricorderParticleCloud = null;
     var _tSlot = inventory.indexOf(tricorderItem);
     if (_tSlot >= 0) {
-      selectSlot(_tSlot);
-      useActiveItem();
+      selectSlot(_tSlot); // auto-activates via autoActivate flag
       var _tN = _tSlot + 1;
       setTimeout(function() { showPickupNotification(MOBILE ? 'Tap slot ' + _tN + ' to deactivate' : 'Press ' + _tN + ' to deactivate'); }, 1500);
     }

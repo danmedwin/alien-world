@@ -446,11 +446,15 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #scan-card {
   display:none;
   position:absolute;
-  left:50%; top:55%;
-  transform:translateX(-50%);
-  background:rgba(20,6,45,0.88);
-  border:1px solid rgba(255,170,50,0.4);
-  border-radius:8px;
+  right:15px;
+  bottom:155px;
+  width:280px;
+  box-sizing:border-box;
+  background:rgba(20,6,45,0.92);
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,170,50,0.013) 3px,rgba(255,170,50,0.013) 4px);
+  border:1px solid rgba(255,170,50,0.42);
+  border-bottom:1px solid rgba(255,170,50,0.22);
+  border-radius:8px 8px 3px 3px;
   padding:8px 12px 8px 8px;
   font-family:monospace;
   color:rgba(255,170,50,0.9);
@@ -459,6 +463,25 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   transition:opacity 0.2s;
   align-items:flex-start;
   gap:10px;
+}
+#held-device-wrap {
+  display:none;
+  position:absolute;
+  right:15px;
+  bottom:-120px;
+  width:280px;
+  height:340px;
+  pointer-events:none;
+  z-index:7;
+}
+#held-device-canvas {
+  position:absolute;
+  top:0; left:0;
+  width:100%; height:100%;
+  border-left:1px solid rgba(255,170,50,0.13);
+  border-right:1px solid rgba(255,170,50,0.13);
+  border-bottom:1px solid rgba(255,170,50,0.1);
+  border-radius:0 0 10px 10px;
 }
 #scan-card-text {
   flex:1;
@@ -660,7 +683,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.8</div>
+<div id="version-tag">v7.12</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -710,6 +733,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
     <div id="scan-card-bar"></div>
   </div>
 </div>
+<div id="held-device-wrap"><canvas id="held-device-canvas"></canvas></div>
 
 <div id="waypoint-panel">
   <div id="waypoint-panel-header">LOCATIONS</div>
@@ -2581,6 +2605,7 @@ var previewScene = null;
 var previewCamera = null;
 var previewMesh = null;
 var previewRotY = 0;
+var heldDeviceRenderer = null, heldDeviceScene = null, heldDeviceCamera = null, heldDeviceMesh = null;
 
 // Cast rays in a small spread pattern around center
 var scanOffsets = [
@@ -2644,11 +2669,79 @@ function showScanCard(data) {
   scanCardDesc.textContent = data.desc;
   scanCardTraits.textContent = data.traits;
   scanCard.style.display = 'flex';
+  if (!heldDeviceRenderer) initHeldDevice();
+  var hw = document.getElementById('held-device-wrap');
+  if (hw) hw.style.display = 'block';
 }
 
 function hideScanCard() {
   if (!scanCard) initScanCard();
   scanCard.style.display = 'none';
+  var hw = document.getElementById('held-device-wrap');
+  if (hw) hw.style.display = 'none';
+}
+
+function initHeldDevice() {
+  var canvas = document.getElementById('held-device-canvas');
+  if (!canvas || heldDeviceRenderer) return;
+  heldDeviceRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  heldDeviceRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  heldDeviceRenderer.setSize(280, 340, false);
+  heldDeviceRenderer.setClearColor(0x000000, 0);
+  heldDeviceScene = new THREE.Scene();
+  heldDeviceCamera = new THREE.PerspectiveCamera(42, 280 / 340, 0.01, 20);
+  heldDeviceCamera.position.set(0.05, 0.10, 0.50);
+  heldDeviceCamera.lookAt(0, -0.08, 0);
+  var hdAmb = new THREE.AmbientLight(0x503020, 0.7);
+  heldDeviceScene.add(hdAmb);
+  var hdKey = new THREE.DirectionalLight(0xffcc88, 1.0);
+  hdKey.position.set(0.5, 2, 2);
+  heldDeviceScene.add(hdKey);
+  var hdFill = new THREE.DirectionalLight(0x334466, 0.4);
+  hdFill.position.set(-1, -1, -2);
+  heldDeviceScene.add(hdFill);
+  var hdScreen = new THREE.PointLight(0xffaa33, 0.7, 2);
+  hdScreen.position.set(0, 0.18, 0.28);
+  heldDeviceScene.add(hdScreen);
+  // Build tricorder body for held view
+  var bMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
+  var fMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
+  var scrMat = new THREE.MeshBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.75 });
+  var blkMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.06, 0.06, 0.08) });
+  var r1Mat  = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+  var b1Mat  = new THREE.MeshBasicMaterial({ color: 0x4488ff });
+  var gMat   = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
+  var slotMat = new THREE.MeshBasicMaterial({ color: 0x050508 });
+  var body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.08), bMat);
+  var flip = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.06), fMat);
+  flip.position.set(0, 0.25, 0.03);
+  flip.rotation.x = 0.5;
+  var scr = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.01), scrMat);
+  scr.position.set(0, 0.02, 0.031);
+  flip.add(scr);
+  var tlight = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), gMat);
+  tlight.position.set(-0.06, 0.15, 0.041);
+  body.add(tlight);
+  var btn1 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.01), r1Mat);
+  btn1.position.set(0.05, 0.05, 0.041);
+  body.add(btn1);
+  var btn2 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.01), b1Mat);
+  btn2.position.set(0.05, 0.00, 0.041);
+  body.add(btn2);
+  var slot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.015, 0.085), slotMat);
+  slot.position.set(0, -0.08, 0);
+  body.add(slot);
+  var ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25, 8), blkMat);
+  ant.position.set(0, 0.525, 0);
+  body.add(ant);
+  var ball = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), blkMat);
+  ball.position.set(0, 0.67, 0);
+  body.add(ball);
+  body.add(flip);
+  body.position.set(0, -0.13, 0);
+  body.rotation.set(-0.12, -0.22, 0.05);
+  heldDeviceScene.add(body);
+  heldDeviceMesh = body;
 }
 
 function setScanPreview(targetMesh) {
@@ -4693,6 +4786,13 @@ if (scannerActive && previewRenderer && previewMesh && previewScene && previewCa
   previewMesh.rotation.y = previewRotY;
   previewMesh.rotation.x = Math.sin(previewRotY * 0.4) * 0.18;
   previewRenderer.render(previewScene, previewCamera);
+}
+// Held device renderer (tricorder in hand)
+if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
+  heldDeviceMesh.rotation.y = -0.22 + Math.sin(now * 0.00075) * 0.022;
+  heldDeviceMesh.rotation.z =  0.05 + Math.cos(now * 0.00055) * 0.010;
+  heldDeviceMesh.position.y = -0.13 + Math.sin(now * 0.00095) * 0.005;
+  heldDeviceRenderer.render(heldDeviceScene, heldDeviceCamera);
 }
 
 // Render

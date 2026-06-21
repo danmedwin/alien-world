@@ -660,7 +660,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.4</div>
+<div id="version-tag">v7.5</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -1803,10 +1803,11 @@ document.addEventListener('keydown', e => {
           playerJumping = false; playerGrounded = true; velY = 0;
         }
         document.getElementById('fly-indicator').style.display = 'none';
+        updateJumpBtnIcon();
       } else {
         flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
         document.getElementById('fly-indicator').style.display = 'block';
-        playFlyPowerUp();
+        playFlyPowerUp(); updateJumpBtnIcon();
       }
       lastSpaceTime = 0;
     } else {
@@ -1856,6 +1857,15 @@ var jumpHeldTime = 0;
 var jumpSprint = false;
 var flyMode = false;
 var lastSpaceTime = 0;
+var jumpBtnHeld = false;
+function updateJumpBtnIcon() {
+  var btn = document.getElementById('jump-btn'); if (!btn) return;
+  if (flyMode) {
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,8 12,17 20,8" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  } else {
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+}
 var _audioCtx = null;
 function getOrCreateAudioCtx() {
   if (_audioCtx) return _audioCtx;
@@ -3383,7 +3393,8 @@ if (flyMode) {
   camera.position.x += (camDir.x * fwd + rightVec.x * right) * flySpd;
   camera.position.y += camDir.y * fwd * flySpd;
   camera.position.z += (camDir.z * fwd + rightVec.z * right) * flySpd;
-  // Prevent clipping through terrain
+  if (!MOBILE && (keys['ShiftLeft'] || keys['ShiftRight'])) camera.position.y -= 5 * dt;
+  if (MOBILE && jumpBtnHeld) camera.position.y -= 4 * dt;
   var flyFloor = getHeight(camera.position.x, camera.position.z) + 2.5;
   if (camera.position.y < flyFloor) camera.position.y = flyFloor;
   playerGrounded = false;
@@ -3449,7 +3460,7 @@ jumpBtn.addEventListener('touchstart', function(e) {
   var spaceNow = Date.now();
   if (spaceNow - lastSpaceTime < 350) {
     if (flyMode) {
-      flyMode = false; jumpHeld = false;
+      flyMode = false; jumpHeld = false; jumpBtnHeld = false;
       var floorY = getHeight(camera.position.x, camera.position.z) + 2.5;
       if (camera.position.y > floorY + 0.3) {
         playerJumping = true; playerGrounded = false; velY = 0;
@@ -3457,14 +3468,17 @@ jumpBtn.addEventListener('touchstart', function(e) {
         playerJumping = false; playerGrounded = true; velY = 0;
       }
       document.getElementById('fly-indicator').style.display = 'none';
+      updateJumpBtnIcon();
     } else {
       flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
       document.getElementById('fly-indicator').style.display = 'block';
-      playFlyPowerUp();
+      playFlyPowerUp(); updateJumpBtnIcon();
     }
     lastSpaceTime = 0;
   } else {
-    if (!flyMode && playerGrounded) {
+    if (flyMode) {
+      jumpBtnHeld = true;
+    } else if (playerGrounded) {
       jumpSprint = jSprinting;
       playerJumping = true; playerGrounded = false;
       velY = 3.5 * (jSprinting ? 1.2 : 1.0);
@@ -3473,8 +3487,8 @@ jumpBtn.addEventListener('touchstart', function(e) {
     lastSpaceTime = spaceNow;
   }
 }, { passive: false });
-jumpBtn.addEventListener('touchend',    function() { jumpHeld = false; }, { passive: true });
-jumpBtn.addEventListener('touchcancel', function() { jumpHeld = false; }, { passive: true });
+jumpBtn.addEventListener('touchend',    function() { jumpHeld = false; jumpBtnHeld = false; }, { passive: true });
+jumpBtn.addEventListener('touchcancel', function() { jumpHeld = false; jumpBtnHeld = false; }, { passive: true });
 
 function openMenu() {
 menuOpen = true;

@@ -660,7 +660,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.3</div>
+<div id="version-tag">v7.4</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -1795,17 +1795,19 @@ document.addEventListener('keydown', e => {
     if (spaceNow - lastSpaceTime < 350) {
       // Double-tap: toggle free-fly
       flyMode = !flyMode;
-      velY = 0;
-      playerJumping = false;
+      velY = 0; playerJumping = false; jumpHeld = false;
       playerGrounded = !flyMode;
       document.getElementById('fly-indicator').style.display = flyMode ? 'block' : 'none';
+      if (flyMode) playFlyPowerUp();
       lastSpaceTime = 0;
     } else {
-      // Single tap: jump if grounded
+      // Single tap: small initial pop + hold boost
       if (!flyMode && playerGrounded) {
-        playerJumping = true;
-        playerGrounded = false;
-        velY = 10 * ((keys['ShiftLeft'] || keys['ShiftRight']) ? 1.4 : 1.0);
+        var isSprint = keys['ShiftLeft'] || keys['ShiftRight'];
+        jumpSprint = isSprint;
+        playerJumping = true; playerGrounded = false;
+        velY = 3.5 * (isSprint ? 1.2 : 1.0);
+        jumpHeld = true; jumpHeldTime = 0;
       }
       lastSpaceTime = spaceNow;
     }
@@ -1840,8 +1842,54 @@ var locatorSettleTime = 0;
 var velY = 0;
 var playerJumping = false;
 var playerGrounded = true;
+var jumpHeld = false;
+var jumpHeldTime = 0;
+var jumpSprint = false;
 var flyMode = false;
 var lastSpaceTime = 0;
+var _audioCtx = null;
+function getOrCreateAudioCtx() {
+  if (_audioCtx) return _audioCtx;
+  try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return _audioCtx; } catch(e) { return null; }
+}
+function playFlyPowerUp() {
+  var ctx = getOrCreateAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime, dur = 1.4;
+  // Turbine sweep: sawtooth 80→500Hz
+  var turb = ctx.createOscillator(), turbG = ctx.createGain();
+  turb.type = 'sawtooth';
+  turb.frequency.setValueAtTime(80, t); turb.frequency.exponentialRampToValueAtTime(500, t + dur * 0.85);
+  turbG.gain.setValueAtTime(0, t); turbG.gain.linearRampToValueAtTime(0.18, t + 0.08);
+  turbG.gain.setValueAtTime(0.18, t + dur * 0.7); turbG.gain.linearRampToValueAtTime(0, t + dur);
+  turb.connect(turbG); turbG.connect(ctx.destination); turb.start(t); turb.stop(t + dur);
+  // Energy shimmer: sine 200→2000Hz, enters at 25%
+  var shim = ctx.createOscillator(), shimG = ctx.createGain();
+  shim.type = 'sine';
+  shim.frequency.setValueAtTime(200, t); shim.frequency.exponentialRampToValueAtTime(2000, t + dur);
+  shimG.gain.setValueAtTime(0, t); shimG.gain.linearRampToValueAtTime(0, t + dur * 0.25);
+  shimG.gain.linearRampToValueAtTime(0.18, t + dur * 0.8); shimG.gain.linearRampToValueAtTime(0.28, t + dur);
+  shim.connect(shimG); shimG.connect(ctx.destination); shim.start(t); shim.stop(t + dur + 0.05);
+  // Anti-gravity wobble: sine w/ accelerating LFO
+  var wob = ctx.createOscillator(), wlfo = ctx.createOscillator(), wlfoG = ctx.createGain(), wobG = ctx.createGain();
+  wob.type = 'sine';
+  wob.frequency.setValueAtTime(300, t); wob.frequency.exponentialRampToValueAtTime(1800, t + dur);
+  wlfo.type = 'sine'; wlfo.frequency.setValueAtTime(8, t); wlfo.frequency.linearRampToValueAtTime(32, t + dur);
+  wlfoG.gain.value = 120; wlfo.connect(wlfoG); wlfoG.connect(wob.frequency);
+  wobG.gain.setValueAtTime(0, t); wobG.gain.linearRampToValueAtTime(0.13, t + dur * 0.4); wobG.gain.linearRampToValueAtTime(0.16, t + dur);
+  wob.connect(wobG); wobG.connect(ctx.destination); wob.start(t); wlfo.start(t); wob.stop(t + dur); wlfo.stop(t + dur);
+  // Ignition burst noise
+  var bLen = Math.ceil(ctx.sampleRate * 0.12), bBuf = ctx.createBuffer(1, bLen, ctx.sampleRate), bData = bBuf.getChannelData(0);
+  for (var bi = 0; bi < bLen; bi++) bData[bi] = Math.random() * 2 - 1;
+  var bSrc = ctx.createBufferSource(), bFilt = ctx.createBiquadFilter(), bG = ctx.createGain();
+  bSrc.buffer = bBuf; bFilt.type = 'bandpass'; bFilt.frequency.value = 500; bFilt.Q.value = 3;
+  bG.gain.setValueAtTime(0.22, t); bG.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  bSrc.connect(bFilt); bFilt.connect(bG); bG.connect(ctx.destination); bSrc.start(t);
+  // Lock-in ping at end
+  var ping = ctx.createOscillator(), pingG = ctx.createGain();
+  ping.type = 'sine'; ping.frequency.value = 1760;
+  pingG.gain.setValueAtTime(0, t + dur * 0.82); pingG.gain.linearRampToValueAtTime(0.22, t + dur * 0.9); pingG.gain.linearRampToValueAtTime(0, t + dur + 0.08);
+  ping.connect(pingG); pingG.connect(ctx.destination); ping.start(t + dur * 0.82); ping.stop(t + dur + 0.12);
+}
 
 // 3D holographic arrow — extruded chevron with tail, clear directionality
 const arrowGroup = new THREE.Group();
@@ -3208,7 +3256,7 @@ function updateCompass() {
 const keys = {};
 let yaw = 0, pitch = 0, locked = false, started = false;
 document.addEventListener('keydown', e => { keys[e.code] = true; });
-document.addEventListener('keyup', e => { keys[e.code] = false; });
+document.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') jumpHeld = false; });
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; });
 canvas.addEventListener('click', () => { if (started && !MOBILE && !menuOpen) canvas.requestPointerLock(); });
 document.addEventListener('mousemove', e => {
@@ -3344,10 +3392,15 @@ if (flyMode) {
     ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
   }
   if (playerJumping) {
+    if (jumpHeld && jumpHeldTime < 0.45) {
+      velY += 22 * (jumpSprint ? 1.4 : 1.0) * dt;
+      jumpHeldTime += dt;
+    }
     velY += -9 * dt;
     camera.position.y += velY * dt;
     if (camera.position.y <= ty) {
       camera.position.y = ty;
+      jumpHeld = false;
       var bounceV = Math.abs(velY) * 0.22;
       if (bounceV > 0.8) {
         velY = bounceV;
@@ -3387,16 +3440,22 @@ jumpBtn.addEventListener('touchstart', function(e) {
   var spaceNow = Date.now();
   if (spaceNow - lastSpaceTime < 350) {
     flyMode = !flyMode;
-    velY = 0; playerJumping = false; playerGrounded = !flyMode;
+    velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = !flyMode;
     document.getElementById('fly-indicator').style.display = flyMode ? 'block' : 'none';
+    if (flyMode) playFlyPowerUp();
     lastSpaceTime = 0;
   } else {
     if (!flyMode && playerGrounded) {
-      playerJumping = true; playerGrounded = false; velY = 10 * (jSprinting ? 1.4 : 1.0);
+      jumpSprint = jSprinting;
+      playerJumping = true; playerGrounded = false;
+      velY = 3.5 * (jSprinting ? 1.2 : 1.0);
+      jumpHeld = true; jumpHeldTime = 0;
     }
     lastSpaceTime = spaceNow;
   }
 }, { passive: false });
+jumpBtn.addEventListener('touchend',    function() { jumpHeld = false; }, { passive: true });
+jumpBtn.addEventListener('touchcancel', function() { jumpHeld = false; }, { passive: true });
 
 function openMenu() {
 menuOpen = true;

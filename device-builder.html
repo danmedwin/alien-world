@@ -6,8 +6,6 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #08040f; color: #bbb; font-family: 'Courier New', monospace; font-size: 12px; display: flex; height: 100vh; overflow: hidden; }
-
-/* ── Controls ── */
 #ctrl { width: 280px; flex-shrink: 0; overflow-y: auto; background: #0c0918; border-right: 1px solid #221533; padding: 10px 12px; }
 #ctrl-title { font-size: 11px; color: #ccaaff; letter-spacing: 0.08em; margin-bottom: 12px; }
 .group { margin-bottom: 14px; }
@@ -23,12 +21,10 @@ body { background: #08040f; color: #bbb; font-family: 'Courier New', monospace; 
 button { background: #160a28; border: 1px solid #5533aa; color: #ccaaff; padding: 4px 10px; cursor: pointer; font-size: 10px; border-radius: 3px; font-family: monospace; }
 button:hover { background: #221540; }
 #output-box { background: #050308; border: 1px solid #221533; border-radius: 3px; padding: 8px; font-size: 9px; color: #77cc77; white-space: pre; overflow: auto; max-height: 200px; margin-top: 8px; line-height: 1.55; user-select: all; }
-
-/* ── Preview ── */
 #preview-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; background: #080410; overflow: hidden; }
 #preview-label { font-size: 8px; color: #443355; letter-spacing: 0.14em; text-transform: uppercase; }
 #vp { position: relative; overflow: hidden; flex-shrink: 0; background: radial-gradient(ellipse at 45% 75%, #190836 0%, #05020e 100%); border: 1px solid #221533; box-shadow: 0 0 40px rgba(60,10,120,0.35); }
-#vp::after { content: 'viewport edge'; position: absolute; bottom: 0; left: 0; right: 0; height: 16px; background: repeating-linear-gradient(90deg, rgba(255,60,60,0.35) 0, rgba(255,60,60,0.35) 6px, transparent 6px, transparent 12px); border-top: 1px dashed rgba(255,60,60,0.4); font-size: 7px; color: rgba(255,60,60,0.5); text-align: right; padding-right: 6px; padding-top: 3px; letter-spacing: 0.08em; pointer-events: none; }
+#vp::after { content: 'viewport edge'; position: absolute; bottom: 0; left: 0; right: 0; height: 16px; background: repeating-linear-gradient(90deg, rgba(255,60,60,0.35) 0, rgba(255,60,60,0.35) 6px, transparent 6px, transparent 12px); border-top: 1px dashed rgba(255,60,60,0.4); font-size: 7px; color: rgba(255,60,60,0.5); text-align: right; padding-right: 6px; padding-top: 3px; pointer-events: none; }
 #vp-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 40% 65%, rgba(50,10,90,0.35) 0%, transparent 55%); pointer-events: none; }
 #xhair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; transform: translate(-50%,-50%); border: 1px solid rgba(255,255,255,0.15); border-radius: 50%; pointer-events: none; }
 #xhair::before, #xhair::after { content:''; position:absolute; background:rgba(255,255,255,0.12); }
@@ -51,41 +47,48 @@ button:hover { background: #221540; }
 
   <div class="group">
     <div class="group-title">Device Canvas</div>
-    <div class="row"><label>Width</label><input type="range" id="cv-w" min="120" max="500" step="5" value="320"><input type="number" class="val" id="n-cv-w" min="120" max="500" step="5" value="320"></div>
+    <div class="row"><label>Width</label><input type="range" id="cv-w" min="120" max="500" step="5" value="420"><input type="number" class="val" id="n-cv-w" min="120" max="500" step="5" value="420"></div>
     <div class="row"><label>Height</label><input type="range" id="cv-h" min="200" max="800" step="5" value="520"><input type="number" class="val" id="n-cv-h" min="200" max="800" step="5" value="520"></div>
-    <div class="row"><label>Right offset</label><input type="range" id="cv-r" min="0" max="80" step="1" value="10"><input type="number" class="val" id="n-cv-r" min="0" max="80" step="1" value="10"></div>
-    <div class="row"><label>Below fold</label><input type="range" id="cv-bf" min="0" max="400" step="5" value="200"><input type="number" class="val" id="n-cv-bf" min="0" max="400" step="5" value="200"></div>
+    <div class="row"><label>Right offset</label><input type="range" id="cv-r" min="0" max="80" step="1" value="1"><input type="number" class="val" id="n-cv-r" min="0" max="80" step="1" value="1"></div>
+    <div class="row"><label>Below fold</label><input type="range" id="cv-bf" min="0" max="400" step="5" value="190"><input type="number" class="val" id="n-cv-bf" min="0" max="400" step="5" value="190"></div>
   </div>
 
   <div class="group">
-    <div class="group-title">Screen Content (Texture)</div>
+    <div class="group-title">Screen Geometry</div>
+    <div class="row"><label>Screen W</label><input type="range" id="scr-w" min="0.05" max="0.40" step="0.005" value="0.21"><input type="number" class="val" id="n-scr-w" min="0.05" max="0.40" step="0.005" value="0.21"></div>
+    <div class="row"><label>Screen H</label><input type="range" id="scr-h" min="0.04" max="0.30" step="0.005" value="0.17"><input type="number" class="val" id="n-scr-h" min="0.04" max="0.30" step="0.005" value="0.17"></div>
+    <div class="row"><label>Bezel size</label><input type="range" id="bezel" min="0" max="0.06" step="0.001" value="0.015"><input type="number" class="val" id="n-bezel" min="0" max="0.06" step="0.001" value="0.015"></div>
+    <div class="row"><label>Screen Y offset</label><input type="range" id="scr-oy" min="-0.05" max="0.05" step="0.002" value="0"><input type="number" class="val" id="n-scr-oy" min="-0.05" max="0.05" step="0.002" value="0"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Screen Content</div>
     <div class="row"><label>BG opacity</label><input type="range" id="sc-op" min="0" max="1" step="0.01" value="0.92"><input type="number" class="val" id="n-sc-op" min="0" max="1" step="0.01" value="0.92"></div>
     <div class="row"><label>Border width</label><input type="range" id="sc-bw" min="0" max="16" step="1" value="5"><input type="number" class="val" id="n-sc-bw" min="0" max="16" step="1" value="5"></div>
     <div class="row"><label>Border opacity</label><input type="range" id="sc-bo" min="0" max="1" step="0.01" value="0.72"><input type="number" class="val" id="n-sc-bo" min="0" max="1" step="0.01" value="0.72"></div>
-    <div class="row"><label>Font scale</label><input type="range" id="sc-fs" min="0.5" max="2.5" step="0.05" value="1.0"><input type="number" class="val" id="n-sc-fs" min="0.5" max="2.5" step="0.05" value="1.0"></div>
-    <div class="row"><label>Thumb fraction</label><input type="range" id="sc-th" min="0.1" max="0.7" step="0.02" value="0.40"><input type="number" class="val" id="n-sc-th" min="0.1" max="0.7" step="0.02" value="0.40"></div>
-    <div class="row"><label>Screen W</label><input type="range" id="scr-w" min="0.05" max="0.40" step="0.005" value="0.16"><input type="number" class="val" id="n-scr-w" min="0.05" max="0.40" step="0.005" value="0.16"></div>
-    <div class="row"><label>Screen H</label><input type="range" id="scr-h" min="0.04" max="0.30" step="0.005" value="0.12"><input type="number" class="val" id="n-scr-h" min="0.04" max="0.30" step="0.005" value="0.12"></div>
+    <div class="row"><label>Font scale</label><input type="range" id="sc-fs" min="0.4" max="2.5" step="0.05" value="1.0"><input type="number" class="val" id="n-sc-fs" min="0.4" max="2.5" step="0.05" value="1.0"></div>
+    <div class="row"><label>Thumb size</label><input type="range" id="sc-th" min="0.10" max="0.70" step="0.01" value="0.38"><input type="number" class="val" id="n-sc-th" min="0.10" max="0.70" step="0.01" value="0.38"></div>
+    <div class="row"><label>Split pos</label><input type="range" id="sc-sp" min="0.40" max="0.85" step="0.01" value="0.68"><input type="number" class="val" id="n-sc-sp" min="0.40" max="0.85" step="0.01" value="0.68"></div>
   </div>
 
   <div class="group">
     <div class="group-title">3D Device</div>
-    <div class="row"><label>Scale</label><input type="range" id="d-sc" min="0.3" max="3.5" step="0.05" value="1.5"><input type="number" class="val" id="n-d-sc" min="0.3" max="3.5" step="0.05" value="1.5"></div>
-    <div class="row"><label>Y rotation</label><input type="range" id="d-ry" min="-1.0" max="1.0" step="0.01" value="-0.22"><input type="number" class="val" id="n-d-ry" min="-1.0" max="1.0" step="0.01" value="-0.22"></div>
-    <div class="row"><label>X rotation</label><input type="range" id="d-rx" min="-0.6" max="0.4" step="0.01" value="-0.12"><input type="number" class="val" id="n-d-rx" min="-0.6" max="0.4" step="0.01" value="-0.12"></div>
-    <div class="row"><label>Z rotation</label><input type="range" id="d-rz" min="-0.4" max="0.4" step="0.01" value="0.05"><input type="number" class="val" id="n-d-rz" min="-0.4" max="0.4" step="0.01" value="0.05"></div>
-    <div class="row"><label>Y position</label><input type="range" id="d-py" min="-1.0" max="0.5" step="0.01" value="-0.15"><input type="number" class="val" id="n-d-py" min="-1.0" max="0.5" step="0.01" value="-0.15"></div>
-    <div class="row"><label>Flip angle</label><input type="range" id="d-fa" min="0" max="1.2" step="0.01" value="0.5"><input type="number" class="val" id="n-d-fa" min="0" max="1.2" step="0.01" value="0.5"></div>
+    <div class="row"><label>Scale</label><input type="range" id="d-sc" min="0.3" max="3.5" step="0.05" value="1.4"><input type="number" class="val" id="n-d-sc" min="0.3" max="3.5" step="0.05" value="1.4"></div>
+    <div class="row"><label>Y rotation</label><input type="range" id="d-ry" min="-1.0" max="1.0" step="0.01" value="0.01"><input type="number" class="val" id="n-d-ry" min="-1.0" max="1.0" step="0.01" value="0.01"></div>
+    <div class="row"><label>X rotation</label><input type="range" id="d-rx" min="-0.6" max="0.4" step="0.01" value="-0.17"><input type="number" class="val" id="n-d-rx" min="-0.6" max="0.4" step="0.01" value="-0.17"></div>
+    <div class="row"><label>Z rotation</label><input type="range" id="d-rz" min="-0.4" max="0.4" step="0.01" value="-0.04"><input type="number" class="val" id="n-d-rz" min="-0.4" max="0.4" step="0.01" value="-0.04"></div>
+    <div class="row"><label>Y position</label><input type="range" id="d-py" min="-1.0" max="0.5" step="0.01" value="-0.08"><input type="number" class="val" id="n-d-py" min="-1.0" max="0.5" step="0.01" value="-0.08"></div>
+    <div class="row"><label>Flip angle</label><input type="range" id="d-fa" min="0" max="1.2" step="0.01" value="0.43"><input type="number" class="val" id="n-d-fa" min="0" max="1.2" step="0.01" value="0.43"></div>
     <div class="row"><label>Bob device</label><input type="checkbox" id="d-bob" checked></div>
   </div>
 
   <div class="group">
     <div class="group-title">Camera</div>
-    <div class="row"><label>FOV</label><input type="range" id="cam-fov" min="20" max="100" step="1" value="65"><input type="number" class="val" id="n-cam-fov" min="20" max="100" step="1" value="65"></div>
-    <div class="row"><label>Z distance</label><input type="range" id="cam-z" min="0.10" max="1.5" step="0.01" value="0.40"><input type="number" class="val" id="n-cam-z" min="0.10" max="1.5" step="0.01" value="0.40"></div>
-    <div class="row"><label>LookAt Y</label><input type="range" id="cam-ly" min="-0.5" max="0.8" step="0.01" value="0.12"><input type="number" class="val" id="n-cam-ly" min="-0.5" max="0.8" step="0.01" value="0.12"></div>
-    <div class="row"><label>Cam X</label><input type="range" id="cam-x" min="-0.3" max="0.3" step="0.01" value="0.06"><input type="number" class="val" id="n-cam-x" min="-0.3" max="0.3" step="0.01" value="0.06"></div>
-    <div class="row"><label>Cam Y</label><input type="range" id="cam-y" min="-0.1" max="0.5" step="0.01" value="0.18"><input type="number" class="val" id="n-cam-y" min="-0.1" max="0.5" step="0.01" value="0.18"></div>
+    <div class="row"><label>FOV</label><input type="range" id="cam-fov" min="20" max="100" step="1" value="85"><input type="number" class="val" id="n-cam-fov" min="20" max="100" step="1" value="85"></div>
+    <div class="row"><label>Z distance</label><input type="range" id="cam-z" min="0.10" max="1.5" step="0.01" value="0.36"><input type="number" class="val" id="n-cam-z" min="0.10" max="1.5" step="0.01" value="0.36"></div>
+    <div class="row"><label>LookAt Y</label><input type="range" id="cam-ly" min="-0.5" max="0.8" step="0.01" value="0.16"><input type="number" class="val" id="n-cam-ly" min="-0.5" max="0.8" step="0.01" value="0.16"></div>
+    <div class="row"><label>Cam X</label><input type="range" id="cam-x" min="-0.3" max="0.3" step="0.01" value="0.05"><input type="number" class="val" id="n-cam-x" min="-0.3" max="0.3" step="0.01" value="0.05"></div>
+    <div class="row"><label>Cam Y</label><input type="range" id="cam-y" min="-0.1" max="0.5" step="0.01" value="0.24"><input type="number" class="val" id="n-cam-y" min="-0.1" max="0.5" step="0.01" value="0.24"></div>
   </div>
 
   <div class="group">
@@ -99,7 +102,7 @@ button:hover { background: #221540; }
 </div>
 
 <div id="preview-area">
-  <div id="preview-label">PREVIEW — card is rendered as texture on the 3D screen mesh</div>
+  <div id="preview-label">PREVIEW — card projected as texture on 3D screen mesh</div>
   <div id="vp">
     <div id="vp-bg"></div>
     <div id="xhair"></div>
@@ -113,65 +116,67 @@ button:hover { background: #221540; }
 
 // ── Slider definitions ─────────────────────────────────────────────────────
 const SLIDER_DEFS = [
-  { id:'vp-w',    key:'vpW',    min:320,  max:700,  step:10,   dec:0 },
-  { id:'vp-h',    key:'vpH',    min:500,  max:900,  step:10,   dec:0 },
-  { id:'cv-w',    key:'cvW',    min:120,  max:500,  step:5,    dec:0 },
-  { id:'cv-h',    key:'cvH',    min:200,  max:800,  step:5,    dec:0 },
-  { id:'cv-r',    key:'cvR',    min:0,    max:80,   step:1,    dec:0 },
-  { id:'cv-bf',   key:'cvBF',   min:0,    max:400,  step:5,    dec:0 },
-  { id:'sc-op',   key:'scOp',   min:0,    max:1,    step:0.01, dec:2 },
-  { id:'sc-bw',   key:'scBW',   min:0,    max:16,   step:1,    dec:0 },
-  { id:'sc-bo',   key:'scBO',   min:0,    max:1,    step:0.01, dec:2 },
-  { id:'sc-fs',   key:'scFS',   min:0.5,  max:2.5,  step:0.05, dec:2 },
-  { id:'sc-th',   key:'scTh',   min:0.10, max:0.70, step:0.02, dec:2 },
-  { id:'scr-w',   key:'scrW',   min:0.05, max:0.40, step:0.005,dec:3 },
-  { id:'scr-h',   key:'scrH',   min:0.04, max:0.30, step:0.005,dec:3 },
-  { id:'d-sc',    key:'dSc',    min:0.3,  max:3.5,  step:0.05, dec:2 },
-  { id:'d-ry',    key:'dRy',    min:-1.0, max:1.0,  step:0.01, dec:2 },
-  { id:'d-rx',    key:'dRx',    min:-0.6, max:0.4,  step:0.01, dec:2 },
-  { id:'d-rz',    key:'dRz',    min:-0.4, max:0.4,  step:0.01, dec:2 },
-  { id:'d-py',    key:'dPy',    min:-1.0, max:0.5,  step:0.01, dec:2 },
-  { id:'d-fa',    key:'dFA',    min:0,    max:1.2,  step:0.01, dec:2 },
-  { id:'cam-fov', key:'camFov', min:20,   max:100,  step:1,    dec:0 },
-  { id:'cam-z',   key:'camZ',   min:0.10, max:1.5,  step:0.01, dec:2 },
-  { id:'cam-ly',  key:'camLY',  min:-0.5, max:0.8,  step:0.01, dec:2 },
-  { id:'cam-x',   key:'camX',   min:-0.3, max:0.3,  step:0.01, dec:2 },
-  { id:'cam-y',   key:'camY',   min:-0.1, max:0.5,  step:0.01, dec:2 },
+  { id:'vp-w',    key:'vpW',    min:320,  max:700,  step:10,    dec:0 },
+  { id:'vp-h',    key:'vpH',    min:500,  max:900,  step:10,    dec:0 },
+  { id:'cv-w',    key:'cvW',    min:120,  max:500,  step:5,     dec:0 },
+  { id:'cv-h',    key:'cvH',    min:200,  max:800,  step:5,     dec:0 },
+  { id:'cv-r',    key:'cvR',    min:0,    max:80,   step:1,     dec:0 },
+  { id:'cv-bf',   key:'cvBF',   min:0,    max:400,  step:5,     dec:0 },
+  { id:'scr-w',   key:'scrW',   min:0.05, max:0.40, step:0.005, dec:3 },
+  { id:'scr-h',   key:'scrH',   min:0.04, max:0.30, step:0.005, dec:3 },
+  { id:'bezel',   key:'bezel',  min:0,    max:0.06, step:0.001, dec:3 },
+  { id:'scr-oy',  key:'scrOY',  min:-0.05,max:0.05, step:0.002, dec:3 },
+  { id:'sc-op',   key:'scOp',   min:0,    max:1,    step:0.01,  dec:2 },
+  { id:'sc-bw',   key:'scBW',   min:0,    max:16,   step:1,     dec:0 },
+  { id:'sc-bo',   key:'scBO',   min:0,    max:1,    step:0.01,  dec:2 },
+  { id:'sc-fs',   key:'scFS',   min:0.4,  max:2.5,  step:0.05,  dec:2 },
+  { id:'sc-th',   key:'scTh',   min:0.10, max:0.70, step:0.01,  dec:2 },
+  { id:'sc-sp',   key:'scSP',   min:0.40, max:0.85, step:0.01,  dec:2 },
+  { id:'d-sc',    key:'dSc',    min:0.3,  max:3.5,  step:0.05,  dec:2 },
+  { id:'d-ry',    key:'dRy',    min:-1.0, max:1.0,  step:0.01,  dec:2 },
+  { id:'d-rx',    key:'dRx',    min:-0.6, max:0.4,  step:0.01,  dec:2 },
+  { id:'d-rz',    key:'dRz',    min:-0.4, max:0.4,  step:0.01,  dec:2 },
+  { id:'d-py',    key:'dPy',    min:-1.0, max:0.5,  step:0.01,  dec:2 },
+  { id:'d-fa',    key:'dFA',    min:0,    max:1.2,  step:0.01,  dec:2 },
+  { id:'cam-fov', key:'camFov', min:20,   max:100,  step:1,     dec:0 },
+  { id:'cam-z',   key:'camZ',   min:0.10, max:1.5,  step:0.01,  dec:2 },
+  { id:'cam-ly',  key:'camLY',  min:-0.5, max:0.8,  step:0.01,  dec:2 },
+  { id:'cam-x',   key:'camX',   min:-0.3, max:0.3,  step:0.01,  dec:2 },
+  { id:'cam-y',   key:'camY',   min:-0.1, max:0.5,  step:0.01,  dec:2 },
 ];
 
 const DEFAULTS = {
   vpW:460, vpH:700,
-  cvW:320, cvH:520, cvR:10, cvBF:200,
-  scOp:0.92, scBW:5, scBO:0.72, scFS:1.0, scTh:0.40,
-  scrW:0.16, scrH:0.12,
-  dSc:1.5, dRy:-0.22, dRx:-0.12, dRz:0.05, dPy:-0.15, dFA:0.5, dBob:true,
-  camFov:65, camZ:0.40, camLY:0.12, camX:0.06, camY:0.18,
+  cvW:395, cvH:495, cvR:1, cvBF:190,
+  scrW:0.21, scrH:0.145, bezel:0.015, scrOY:0,
+  scOp:0.92, scBW:6, scBO:0.72, scFS:1.45, scTh:0.35, scSP:0.56,
+  dSc:1.8, dRy:0.05, dRx:-0.49, dRz:-0.02, dPy:-0.1, dFA:0.43, dBob:true,
+  camFov:85, camZ:0.36, camLY:0.16, camX:0.05, camY:0.24,
 };
 
 const s = Object.assign({}, DEFAULTS);
 
-// ── Screen texture canvas (2D, off-DOM) ────────────────────────────────────
-const SCR_W = 512, SCR_H = 384; // 4:3, matches default geometry ratio
+// ── Screen texture canvas ──────────────────────────────────────────────────
+// Resolution: 1024px wide, height computed from geometry aspect ratio.
 const screenCanvas = document.createElement('canvas');
-screenCanvas.width = SCR_W; screenCanvas.height = SCR_H;
+screenCanvas.width  = 1024;
+screenCanvas.height = Math.round(1024 * s.scrH / s.scrW);
 const scrCtx = screenCanvas.getContext('2d');
-let screenTexture, scrMesh;
+let screenTexture, scrMesh, flipMesh;
 
-// ── Thumbnail renderer (off-DOM canvas, preserveDrawingBuffer) ─────────────
+// ── Thumbnail (off-DOM, preserveDrawingBuffer for readback) ────────────────
 const thumbCanvas = document.createElement('canvas');
-thumbCanvas.width = 80; thumbCanvas.height = 80;
+thumbCanvas.width = 96; thumbCanvas.height = 96;
 let spR, spSc, spCam, spMesh;
 
 // ── Main Three.js scene ────────────────────────────────────────────────────
-let renderer, scene, camera, deviceMesh, flipMesh;
+let renderer, scene, camera, deviceMesh;
 
 function buildScene() {
-  const canvas = document.getElementById('hd-canvas');
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('hd-canvas'), antialias: true, alpha: true });
   renderer.setClearColor(0x000000, 0);
   scene = new THREE.Scene();
 
-  // Lights
   scene.add(new THREE.AmbientLight(0x503020, 0.65));
   const key = new THREE.DirectionalLight(0xffcc88, 1.1);
   key.position.set(-0.5, 2.5, 2); scene.add(key);
@@ -180,40 +185,33 @@ function buildScene() {
   const scnLight = new THREE.PointLight(0xffaa33, 1.2, 1.5);
   scnLight.position.set(0, 0.28, 0.30); scene.add(scnLight);
 
-  // Screen texture
   screenTexture = new THREE.CanvasTexture(screenCanvas);
 
-  // Materials
   const bMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
   const fMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
-  // Screen: map the canvas texture; slight emissive so it glows like a lit display
   const scrMat = new THREE.MeshLambertMaterial({
     map: screenTexture,
-    emissive: new THREE.Color(0.12, 0.05, 0.00),
+    emissive: new THREE.Color(0.10, 0.04, 0.00),
     emissiveIntensity: 0.8,
   });
-  const blkMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.06, 0.06, 0.08) });
   const r1Mat   = new THREE.MeshBasicMaterial({ color: 0xff4444 });
   const b1Mat   = new THREE.MeshBasicMaterial({ color: 0x4488ff });
   const gMat    = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
   const slotMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.03, 0.03, 0.04) });
 
-  // Body
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.08), bMat);
 
-  // Flip housing (rebuilt when scrW/scrH changes)
-  const flip = new THREE.Mesh(new THREE.BoxGeometry(s.scrW + 0.08, s.scrH + 0.08, 0.06), fMat);
+  const flip = new THREE.Mesh(
+    new THREE.BoxGeometry(s.scrW + 2*s.bezel, s.scrH + 2*s.bezel, 0.06), fMat);
   flip.position.set(0, 0.25, 0.03);
   flip.rotation.x = s.dFA;
   flipMesh = flip;
 
-  // Screen mesh — texture projected here
-  const scr = new THREE.Mesh(new THREE.BoxGeometry(s.scrW, s.scrH, 0.01), scrMat);
-  scr.position.set(0, 0.02, 0.031);
+  const scr = new THREE.Mesh(new THREE.BoxGeometry(s.scrW, s.scrH, 0.011), scrMat);
+  scr.position.set(0, s.scrOY, 0.031);
   flip.add(scr);
   scrMesh = scr;
 
-  // Body details
   const tl = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), gMat);
   tl.position.set(-0.06, 0.15, 0.041); body.add(tl);
   const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.01), r1Mat);
@@ -229,164 +227,217 @@ function buildScene() {
 }
 
 function buildScanPreview() {
-  spR = new THREE.WebGLRenderer({ canvas: thumbCanvas, antialias: false, alpha: true, preserveDrawingBuffer: true });
-  spR.setSize(80, 80, false);
+  spR = new THREE.WebGLRenderer({ canvas: thumbCanvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  spR.setSize(96, 96, false);
   spR.setClearColor(0x000000, 0);
   spSc = new THREE.Scene();
   spCam = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
   spCam.position.set(0, 0.2, 2.5); spCam.lookAt(0, 0, 0);
   spSc.add(new THREE.AmbientLight(0xffffff, 0.4));
-  const kl = new THREE.DirectionalLight(0xffaa44, 1.0);
+  const kl = new THREE.DirectionalLight(0xffaa44, 1.1);
   kl.position.set(2, 3, 3); spSc.add(kl);
   spMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.45, 12, 8),
+    new THREE.SphereGeometry(0.45, 14, 10),
     new THREE.MeshLambertMaterial({ color: 0x4a6622 })
   );
   spSc.add(spMesh);
 }
 
-// ── Text wrapping helper ───────────────────────────────────────────────────
+// ── Text wrap helper ───────────────────────────────────────────────────────
 function fillWrapped(ctx, text, x, y, maxW, lineH) {
   const words = text.split(' ');
   let line = '';
   for (let i = 0; i < words.length; i++) {
     const test = line + words[i] + ' ';
     if (ctx.measureText(test).width > maxW && i > 0) {
-      ctx.fillText(line.trim(), x, y);
-      line = words[i] + ' ';
-      y += lineH;
-    } else {
-      line = test;
-    }
+      ctx.fillText(line.trim(), x, y); line = words[i] + ' '; y += lineH;
+    } else { line = test; }
   }
   ctx.fillText(line.trim(), x, y);
   return y + lineH;
 }
 
-// ── Draw scan card content onto screen texture ─────────────────────────────
+// ── Draw scan card as screen texture ──────────────────────────────────────
 function drawScreenTexture(now) {
-  const w = SCR_W, h = SCR_H;
-  const pad = Math.round(14 * s.scFS);
-  const bw  = s.scBW;
-  const fs  = Math.round(22 * s.scFS);
+  const w = screenCanvas.width, h = screenCanvas.height;
+  // All measurements scale with canvas width relative to a 512 baseline
+  const R   = w / 512;
+  const pad = Math.round(12 * s.scFS * R);
+  const bw  = Math.round(s.scBW * R);
+  const fs  = Math.round(20 * s.scFS * R);
 
-  // Background
-  scrCtx.fillStyle = `rgba(6, 2, 14, ${s.scOp})`;
+  // ── Background ──────────────────────────────────────────────────────────
+  scrCtx.fillStyle = `rgba(6,2,14,${s.scOp})`;
   scrCtx.fillRect(0, 0, w, h);
 
-  // Subtle scanlines
-  for (let y = 0; y < h; y += 4) {
-    scrCtx.fillStyle = 'rgba(0,0,0,0.07)';
-    scrCtx.fillRect(0, y, w, 1);
+  // Scanlines
+  const sl = Math.max(1, Math.round(R * 2));
+  for (let y = 0; y < h; y += sl * 2) {
+    scrCtx.fillStyle = 'rgba(0,0,0,0.065)';
+    scrCtx.fillRect(0, y, w, sl);
   }
 
-  // Inner ambient glow
-  const grd = scrCtx.createRadialGradient(w * 0.5, h * 0.4, 0, w * 0.5, h * 0.5, w * 0.55);
-  grd.addColorStop(0, 'rgba(255,140,20,0.06)');
-  grd.addColorStop(1, 'rgba(0,0,0,0)');
-  scrCtx.fillStyle = grd;
-  scrCtx.fillRect(0, 0, w, h);
+  // Inner glow
+  const grd = scrCtx.createRadialGradient(w*.5, h*.38, 0, w*.5, h*.5, w*.6);
+  grd.addColorStop(0, 'rgba(255,140,20,0.07)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+  scrCtx.fillStyle = grd; scrCtx.fillRect(0, 0, w, h);
 
   // Border
   if (bw > 0) {
     scrCtx.strokeStyle = `rgba(255,170,50,${s.scBO})`;
     scrCtx.lineWidth = bw;
-    scrCtx.strokeRect(bw * 0.5, bw * 0.5, w - bw, h - bw);
+    scrCtx.strokeRect(bw*.5, bw*.5, w - bw, h - bw);
   }
 
-  // Type label
+  // Section divider position (in pixels from top)
+  const divY = Math.round(h * s.scSP);
+
+  // ── UPPER SECTION: creature info ─────────────────────────────────────
   const topY = bw + pad;
-  scrCtx.fillStyle = 'rgba(255,170,50,0.5)';
-  scrCtx.font = `${Math.round(fs * 0.6)}px monospace`;
+
+  // Type label
+  scrCtx.fillStyle = 'rgba(255,170,50,0.48)';
+  scrCtx.font = `${Math.round(fs * 0.58)}px monospace`;
   scrCtx.textBaseline = 'top';
   scrCtx.fillText('◆  F A U N A', bw + pad, topY);
 
   // Thumbnail
-  const thumbH = Math.round(h * s.scTh);
-  const thumbW = thumbH;
-  const thumbX = bw + pad;
-  const thumbY = topY + Math.round(fs * 0.65) + 6;
+  const availH  = divY - topY - Math.round(fs * 0.65) - 8 - pad;
+  const thumbH  = Math.min(Math.round(h * s.scTh), availH);
+  const thumbW  = thumbH;
+  const thumbX  = bw + pad;
+  const thumbY  = topY + Math.round(fs * 0.65) + 8;
 
   scrCtx.fillStyle = 'rgba(8,3,18,0.9)';
   scrCtx.fillRect(thumbX, thumbY, thumbW, thumbH);
-  scrCtx.strokeStyle = 'rgba(255,170,50,0.25)';
-  scrCtx.lineWidth = 1;
-  scrCtx.strokeRect(thumbX, thumbY, thumbW, thumbH);
+  scrCtx.strokeStyle = 'rgba(255,170,50,0.22)';
+  scrCtx.lineWidth = Math.max(1, Math.round(R));
+  scrCtx.strokeRect(thumbX + .5, thumbY + .5, thumbW - 1, thumbH - 1);
   try { scrCtx.drawImage(thumbCanvas, thumbX, thumbY, thumbW, thumbH); } catch(e) {}
 
-  // Text area (right of thumbnail)
-  const textX = thumbX + thumbW + Math.round(10 * s.scFS);
+  // Text (right of thumbnail)
+  const textX   = thumbX + thumbW + Math.round(10 * s.scFS * R);
   const textMaxW = w - textX - bw - pad;
-  let textY = thumbY;
+  let   textY   = thumbY;
 
-  // Species name
   scrCtx.fillStyle = 'rgba(255,200,100,0.95)';
   scrCtx.font = `bold ${fs}px monospace`;
   textY = fillWrapped(scrCtx, 'Luminous Crawler', textX, textY, textMaxW, fs + 3);
 
-  // Divider
-  textY += 3;
-  scrCtx.strokeStyle = 'rgba(255,170,50,0.22)';
-  scrCtx.lineWidth = 1;
-  scrCtx.beginPath();
-  scrCtx.moveTo(textX, textY); scrCtx.lineTo(textX + textMaxW, textY);
-  scrCtx.stroke();
+  textY += 4;
+  scrCtx.strokeStyle = 'rgba(255,170,50,0.20)';
+  scrCtx.lineWidth = Math.max(1, Math.round(R * 0.5));
+  scrCtx.beginPath(); scrCtx.moveTo(textX, textY); scrCtx.lineTo(textX + textMaxW, textY); scrCtx.stroke();
   textY += 7;
 
-  // Description
-  const smallFS = Math.round(fs * 0.72);
-  scrCtx.fillStyle = 'rgba(255,170,50,0.7)';
-  scrCtx.font = `${smallFS}px monospace`;
-  textY = fillWrapped(scrCtx, 'Bioluminescent hexapod, cave-dwelling', textX, textY, textMaxW, smallFS + 3);
+  const smFS = Math.round(fs * 0.70);
+  scrCtx.fillStyle = 'rgba(255,170,50,0.70)';
+  scrCtx.font = `${smFS}px monospace`;
+  textY = fillWrapped(scrCtx, 'Bioluminescent hexapod, cave-dwelling', textX, textY, textMaxW, smFS + 4);
 
-  textY += 4;
-
-  // Traits
-  const tinyFS = Math.round(fs * 0.6);
-  scrCtx.fillStyle = 'rgba(255,170,50,0.5)';
-  scrCtx.font = `${tinyFS}px monospace`;
+  textY += 5;
+  const tnFS = Math.round(fs * 0.58);
+  scrCtx.fillStyle = 'rgba(255,170,50,0.48)';
+  scrCtx.font = `${tnFS}px monospace`;
   scrCtx.fillText('Nocturnal · Harmless · Rare', textX, textY);
 
-  // Animated scan bar (bottom strip)
-  const barY  = h - bw - pad - 4;
-  const barX  = bw + pad + thumbW + Math.round(10 * s.scFS);
-  const barW  = w - barX - bw - pad;
-  const barH  = 3;
-  scrCtx.fillStyle = 'rgba(255,170,50,0.18)';
+  // ── SECTION DIVIDER ──────────────────────────────────────────────────
+  scrCtx.strokeStyle = 'rgba(255,170,50,0.18)';
+  scrCtx.lineWidth = Math.max(1, Math.round(R));
+  scrCtx.beginPath(); scrCtx.moveTo(bw + pad, divY); scrCtx.lineTo(w - bw - pad, divY); scrCtx.stroke();
+
+  // ── LOWER SECTION: scan data ─────────────────────────────────────────
+  const loY  = divY + Math.round(8 * R);
+  const loFS = Math.round(fs * 0.64);
+  const lbFS = Math.round(fs * 0.52);
+  const innerW = w - (bw + pad) * 2;
+  const col   = Math.round(innerW / 3);
+  const x0 = bw + pad, x1 = x0 + col, x2 = x0 + col * 2;
+
+  // Labels row
+  scrCtx.fillStyle = 'rgba(255,170,50,0.38)';
+  scrCtx.font = `${lbFS}px monospace`;
+  scrCtx.fillText('DIST', x0, loY);
+  scrCtx.fillText('SIGNAL', x1, loY);
+  scrCtx.fillText('RISK', x2, loY);
+
+  const valY = loY + lbFS + Math.round(4 * R);
+
+  // DIST
+  scrCtx.fillStyle = 'rgba(255,200,100,0.90)';
+  scrCtx.font = `bold ${loFS}px monospace`;
+  scrCtx.fillText('12m', x0, valY);
+
+  // SIGNAL — mini bar + percentage
+  const sigBarH = Math.round(loFS * 0.62);
+  const sigBarW = Math.round(col * 0.75);
+  const sigBarY = valY - sigBarH + Math.round(R);
+  scrCtx.fillStyle = 'rgba(255,170,50,0.14)';
+  scrCtx.fillRect(x1, sigBarY, sigBarW, sigBarH);
+  scrCtx.fillStyle = 'rgba(255,170,50,0.78)';
+  scrCtx.fillRect(x1, sigBarY, Math.round(sigBarW * 0.73), sigBarH);
+  scrCtx.fillStyle = 'rgba(255,200,100,0.88)';
+  scrCtx.font = `${lbFS}px monospace`;
+  scrCtx.fillText('73%', x1 + sigBarW + Math.round(4 * R), sigBarY);
+
+  // RISK
+  scrCtx.fillStyle = 'rgba(70,220,70,0.88)';
+  scrCtx.font = `bold ${loFS}px monospace`;
+  scrCtx.fillText('LOW', x2, valY);
+
+  // ── FULL-WIDTH ANIMATED SCAN BAR (bottom) ────────────────────────────
+  const barH  = Math.round(5 * R);
+  const barY  = h - bw - Math.round(pad * .6) - barH;
+  const barX  = bw + pad;
+  const barW  = w - (bw + pad) * 2;
+  const fillW = Math.round(barW * 0.28);
+
+  scrCtx.fillStyle = 'rgba(255,170,50,0.13)';
   scrCtx.fillRect(barX, barY, barW, barH);
-  const phase  = (now * 0.001 / 1.5) % 1;
-  const pos    = phase < 0.5 ? phase * 2 : 2 - phase * 2;
-  const fillW  = barW * 0.35;
+
+  const phase = (now * 0.00067) % 1; // ~1.5 s period
+  const pos   = phase < .5 ? phase * 2 : 2 - phase * 2;
   scrCtx.fillStyle = 'rgba(255,170,50,0.85)';
-  scrCtx.fillRect(barX + pos * (barW - fillW), barY, fillW, barH);
+  scrCtx.fillRect(barX + Math.round(pos * (barW - fillW)), barY, fillW, barH);
+
+  // Subtle top-edge highlight on bar
+  scrCtx.fillStyle = 'rgba(255,230,120,0.35)';
+  scrCtx.fillRect(barX, barY, barW, Math.max(1, Math.round(R)));
 
   screenTexture.needsUpdate = true;
 }
 
-// ── Rebuild screen geometry when its size changes ──────────────────────────
+// ── Rebuild geometry when screen/bezel sizes change ────────────────────────
 function rebuildScreen() {
   if (!scrMesh || !flipMesh) return;
-  // Replace screen geometry
+
   scrMesh.geometry.dispose();
-  scrMesh.geometry = new THREE.BoxGeometry(s.scrW, s.scrH, 0.01);
-  // Resize flip housing to surround screen
+  scrMesh.geometry = new THREE.BoxGeometry(s.scrW, s.scrH, 0.011);
+
   flipMesh.geometry.dispose();
-  flipMesh.geometry = new THREE.BoxGeometry(s.scrW + 0.08, s.scrH + 0.08, 0.06);
+  flipMesh.geometry = new THREE.BoxGeometry(s.scrW + 2*s.bezel, s.scrH + 2*s.bezel, 0.06);
+
+  // Keep screen centered (or at user offset) — prevents overflow past bezel
+  if (scrMesh) scrMesh.position.y = s.scrOY;
+
+  // Resize texture to match screen aspect ratio (keeps text un-distorted)
+  const newW = 1024;
+  const newH = Math.max(64, Math.round(newW * s.scrH / s.scrW));
+  if (screenCanvas.width !== newW || screenCanvas.height !== newH) {
+    screenCanvas.width  = newW;
+    screenCanvas.height = newH;
+    screenTexture.needsUpdate = true;
+  }
 }
 
-// ── Apply state ────────────────────────────────────────────────────────────
+// ── Apply state to scene + DOM ─────────────────────────────────────────────
 function applyState() {
-  // Viewport
-  const vp = document.getElementById('vp');
-  vp.style.width  = s.vpW + 'px';
-  vp.style.height = s.vpH + 'px';
+  document.getElementById('vp').style.width  = s.vpW + 'px';
+  document.getElementById('vp').style.height = s.vpH + 'px';
 
-  // Device canvas
   const hd = document.getElementById('hd-wrap');
-  hd.style.width  = s.cvW + 'px';
-  hd.style.height = s.cvH + 'px';
-  hd.style.right  = s.cvR + 'px';
-  hd.style.bottom = (-s.cvBF) + 'px';
+  hd.style.width = s.cvW + 'px'; hd.style.height = s.cvH + 'px';
+  hd.style.right = s.cvR + 'px'; hd.style.bottom = (-s.cvBF) + 'px';
 
   renderer.setSize(s.cvW, s.cvH, false);
   camera = new THREE.PerspectiveCamera(s.camFov, s.cvW / s.cvH, 0.01, 20);
@@ -406,6 +457,8 @@ function applyState() {
 
 // ── Output ─────────────────────────────────────────────────────────────────
 function updateOutput() {
+  const flipW = parseFloat((s.scrW + 2*s.bezel).toFixed(3));
+  const flipH = parseFloat((s.scrH + 2*s.bezel).toFixed(3));
   document.getElementById('output-box').textContent =
 `/* ── JS initHeldDevice() ── */
 var W = ${s.cvW}, H = ${s.cvH};
@@ -416,13 +469,13 @@ heldDeviceCamera.lookAt(0, ${s.camLY}, 0);
 body.scale.setScalar(${s.dSc});
 body.position.set(0, ${s.dPy}, 0);
 body.rotation.set(${s.dRx}, ${s.dRy}, ${s.dRz});
-// Screen geometry: BoxGeometry(${s.scrW}, ${s.scrH}, 0.01)
-// Flip housing:   BoxGeometry(${(s.scrW+0.08).toFixed(3)}, ${(s.scrH+0.08).toFixed(3)}, 0.06)
+// Screen:  BoxGeometry(${s.scrW}, ${s.scrH}, 0.011)
+// Flip:    BoxGeometry(${flipW}, ${flipH}, 0.06)
 // flip.rotation.x = ${s.dFA};
 
 /* ── drawHeldDeviceScreen() params ── */
-// scOp: ${s.scOp}  scBW: ${s.scBW}  scBO: ${s.scBO}
-// scFS: ${s.scFS}  scTh: ${s.scTh}`;
+// scOp:${s.scOp}  scBW:${s.scBW}  scBO:${s.scBO}
+// scFS:${s.scFS}  scTh:${s.scTh}  scSP:${s.scSP}`;
 }
 
 function copyOutput() {
@@ -436,8 +489,7 @@ function copyOutput() {
 function resetDefaults() {
   Object.assign(s, DEFAULTS);
   SLIDER_DEFS.forEach(({ id, key, dec }) => {
-    const r = document.getElementById(id);
-    const n = document.getElementById('n-' + id);
+    const r = document.getElementById(id), n = document.getElementById('n-' + id);
     if (r) r.value = s[key];
     if (n) n.value = fmtVal(s[key], dec);
   });
@@ -445,44 +497,32 @@ function resetDefaults() {
   applyState();
 }
 
-// ── Slider ↔ number input binding ─────────────────────────────────────────
-function fmtVal(v, dec) {
-  return dec === 0 ? Math.round(v) : parseFloat(v).toFixed(dec);
-}
+// ── Slider ↔ number input bidirectional binding ────────────────────────────
+function fmtVal(v, dec) { return dec === 0 ? Math.round(v) : parseFloat(v).toFixed(dec); }
 
 SLIDER_DEFS.forEach(({ id, key, min, max, dec }) => {
-  const rangeEl = document.getElementById(id);
-  const numEl   = document.getElementById('n-' + id);
-
-  rangeEl.addEventListener('input', () => {
-    s[key] = parseFloat(rangeEl.value);
-    numEl.value = fmtVal(s[key], dec);
-    applyState();
+  const rEl = document.getElementById(id), nEl = document.getElementById('n-' + id);
+  rEl.addEventListener('input', () => {
+    s[key] = parseFloat(rEl.value); nEl.value = fmtVal(s[key], dec); applyState();
   });
-
   function commit() {
-    let v = parseFloat(numEl.value);
-    if (isNaN(v)) { numEl.value = fmtVal(s[key], dec); return; }
+    let v = parseFloat(nEl.value);
+    if (isNaN(v)) { nEl.value = fmtVal(s[key], dec); return; }
     v = Math.max(min, Math.min(max, v));
-    s[key] = v;
-    rangeEl.value = v;
-    numEl.value = fmtVal(v, dec);
-    applyState();
+    s[key] = v; rEl.value = v; nEl.value = fmtVal(v, dec); applyState();
   }
-  numEl.addEventListener('change', commit);
-  numEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); numEl.blur(); } });
+  nEl.addEventListener('change', commit);
+  nEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nEl.blur(); } });
 });
-
 document.getElementById('d-bob').addEventListener('change', e => { s.dBob = e.target.checked; });
 
 // ── Animate ────────────────────────────────────────────────────────────────
 const t0 = performance.now();
-
 function animate() {
   requestAnimationFrame(animate);
   const now = performance.now() - t0;
 
-  // 1. Render thumbnail into off-DOM canvas
+  // 1. Render rotating thumbnail into off-DOM canvas
   if (spR && spMesh) { spMesh.rotation.y += 0.012; spR.render(spSc, spCam); }
 
   // 2. Draw scan card content onto screen texture (reads thumbnail pixels)
@@ -495,20 +535,19 @@ function animate() {
       deviceMesh.rotation.y = s.dRy + Math.sin(now * 0.00075) * 0.022;
       deviceMesh.rotation.z = s.dRz + Math.cos(now * 0.00055) * 0.010;
     } else {
-      deviceMesh.position.y = s.dPy;
-      deviceMesh.rotation.y = s.dRy;
-      deviceMesh.rotation.z = s.dRz;
+      deviceMesh.position.set(0, s.dPy, 0);
+      deviceMesh.rotation.set(s.dRx, s.dRy, s.dRz);
     }
   }
 
-  // 4. Render main scene
+  // 4. Render main 3D scene
   if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 buildScene();
 buildScanPreview();
-applyState();
+resetDefaults();
 animate();
 </script>
 </body>

@@ -469,10 +469,10 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #held-device-wrap {
   display:none;
   position:absolute;
-  right:10px;
-  bottom:-200px;
-  width:320px;
-  height:520px;
+  right:0px;
+  bottom:-235px;
+  width:395px;
+  height:500px;
   pointer-events:none;
   z-index:7;
 }
@@ -685,7 +685,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.12</div>
+<div id="version-tag">v7.14</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2608,6 +2608,8 @@ var previewCamera = null;
 var previewMesh = null;
 var previewRotY = 0;
 var heldDeviceRenderer = null, heldDeviceScene = null, heldDeviceCamera = null, heldDeviceMesh = null;
+var heldDeviceScreenCanvas = null, heldDeviceScrCtx = null, heldDeviceScreenTexture = null;
+var heldDeviceScanData = null;
 
 // Cast rays in a small spread pattern around center
 var scanOffsets = [
@@ -2633,16 +2635,12 @@ function isLockValid() {
 }
 
 function initScanCard() {
-  scanCard = document.getElementById('scan-card');
-  scanCardType = document.getElementById('scan-card-type');
-  scanCardSpecies = document.getElementById('scan-card-species');
-  scanCardDesc = document.getElementById('scan-card-desc');
-  scanCardTraits = document.getElementById('scan-card-traits');
-  var previewCanvas = document.getElementById('scan-preview-canvas');
-  if (previewCanvas && !previewRenderer) {
-    previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: false, alpha: true });
+  if (!previewRenderer) {
+    var offCanvas = document.createElement('canvas');
+    offCanvas.width = 96; offCanvas.height = 96;
+    previewRenderer = new THREE.WebGLRenderer({ canvas: offCanvas, antialias: false, alpha: true, preserveDrawingBuffer: true });
     previewRenderer.setPixelRatio(1);
-    previewRenderer.setSize(88, 88, false);
+    previewRenderer.setSize(96, 96, false);
     previewRenderer.setClearColor(0x000000, 0);
     previewScene = new THREE.Scene();
     previewCamera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
@@ -2660,25 +2658,20 @@ function initScanCard() {
 }
 
 function showScanCard(data) {
-  if (!scanCard) initScanCard();
+  initScanCard();
   var typeLabel = '◆ UNKNOWN';
   if (data.scanType === 'plant') typeLabel = '◆ FLORA';
   else if (data.scanType === 'creature') typeLabel = '◆ FAUNA';
   else if (data.scanType === 'celestial') typeLabel = '◆ CELESTIAL';
   else if (data.scanType === 'structure') typeLabel = '◆ STRUCTURE';
-  scanCardType.textContent = typeLabel;
-  scanCardSpecies.textContent = data.species;
-  scanCardDesc.textContent = data.desc;
-  scanCardTraits.textContent = data.traits;
-  scanCard.style.display = 'flex';
+  heldDeviceScanData = { label: typeLabel, species: data.species, desc: data.desc, traits: data.traits };
   if (!heldDeviceRenderer) initHeldDevice();
   var hw = document.getElementById('held-device-wrap');
   if (hw) hw.style.display = 'block';
 }
 
 function hideScanCard() {
-  if (!scanCard) initScanCard();
-  scanCard.style.display = 'none';
+  heldDeviceScanData = null;
   var hw = document.getElementById('held-device-wrap');
   if (hw) hw.style.display = 'none';
 }
@@ -2686,16 +2679,15 @@ function hideScanCard() {
 function initHeldDevice() {
   var canvas = document.getElementById('held-device-canvas');
   if (!canvas || heldDeviceRenderer) return;
-  var W = 320, H = 520;
+  var W = 395, H = 500;
   heldDeviceRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
   heldDeviceRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   heldDeviceRenderer.setSize(W, H, false);
   heldDeviceRenderer.setClearColor(0x000000, 0);
   heldDeviceScene = new THREE.Scene();
-  heldDeviceCamera = new THREE.PerspectiveCamera(65, W / H, 0.01, 20);
-  heldDeviceCamera.position.set(0.06, 0.18, 0.40);
-  heldDeviceCamera.lookAt(0, 0.12, 0);
-  // Warm key from above-left, cool fill from behind, amber screen glow
+  heldDeviceCamera = new THREE.PerspectiveCamera(87, W / H, 0.01, 20);
+  heldDeviceCamera.position.set(0.03, 0.24, 0.36);
+  heldDeviceCamera.lookAt(0, 0.16, 0);
   var hdAmb = new THREE.AmbientLight(0x503020, 0.65);
   heldDeviceScene.add(hdAmb);
   var hdKey = new THREE.DirectionalLight(0xffcc88, 1.1);
@@ -2704,26 +2696,34 @@ function initHeldDevice() {
   var hdFill = new THREE.DirectionalLight(0x334466, 0.35);
   hdFill.position.set(1, -1, -2);
   heldDeviceScene.add(hdFill);
-  var hdScreen = new THREE.PointLight(0xffaa33, 1.2, 1.5);
-  hdScreen.position.set(0, 0.28, 0.30);
-  heldDeviceScene.add(hdScreen);
+  var hdGlow = new THREE.PointLight(0xffaa33, 1.2, 1.5);
+  hdGlow.position.set(0, 0.28, 0.30);
+  heldDeviceScene.add(hdGlow);
+  // Screen texture canvas — 1024px wide, height matches screen aspect ratio (0.105/0.19)
+  heldDeviceScreenCanvas = document.createElement('canvas');
+  heldDeviceScreenCanvas.width = 1024;
+  heldDeviceScreenCanvas.height = Math.round(1024 * 0.105 / 0.19);
+  heldDeviceScrCtx = heldDeviceScreenCanvas.getContext('2d');
+  heldDeviceScreenTexture = new THREE.CanvasTexture(heldDeviceScreenCanvas);
   // Materials
-  var bMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
-  var fMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
-  // Screen: dark base + amber emissive so the card reads on top of a glowing surface
-  var scrMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.02, 0.01, 0.00), emissive: new THREE.Color(0.38, 0.20, 0.02), emissiveIntensity: 0.9 });
-  var blkMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.06, 0.06, 0.08) });
-  var r1Mat  = new THREE.MeshBasicMaterial({ color: 0xff4444 });
-  var b1Mat  = new THREE.MeshBasicMaterial({ color: 0x4488ff });
-  var gMat   = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
+  var bMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
+  var fMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
+  var scrMat = new THREE.MeshLambertMaterial({
+    map: heldDeviceScreenTexture,
+    emissive: new THREE.Color(0.10, 0.04, 0.00),
+    emissiveIntensity: 0.8
+  });
+  var r1Mat = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+  var b1Mat = new THREE.MeshBasicMaterial({ color: 0x4488ff });
+  var gMat  = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
   var slotMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.03, 0.03, 0.04) });
-  // Build tricorder at 1.5× scale
+  // Device body
   var body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.08), bMat);
-  var flip = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.06), fMat);
+  var flip = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.145, 0.06), fMat);
   flip.position.set(0, 0.25, 0.03);
-  flip.rotation.x = 0.5;
-  var scr = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.01), scrMat);
-  scr.position.set(0, 0.02, 0.031);
+  flip.rotation.x = 0.42;
+  var scr = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.105, 0.011), scrMat);
+  scr.position.set(0, 0, 0.031);
   flip.add(scr);
   var tlight = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), gMat);
   tlight.position.set(-0.06, 0.15, 0.041);
@@ -2737,18 +2737,162 @@ function initHeldDevice() {
   var slot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.015, 0.085), slotMat);
   slot.position.set(0, -0.08, 0);
   body.add(slot);
-  var ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25, 8), blkMat);
-  ant.position.set(0, 0.525, 0);
-  body.add(ant);
-  var ball = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), blkMat);
-  ball.position.set(0, 0.67, 0);
-  body.add(ball);
   body.add(flip);
-  body.scale.set(1.5, 1.5, 1.5);
-  body.position.set(0, -0.15, 0);
-  body.rotation.set(-0.12, -0.22, 0.05);
+  body.scale.set(1.8, 1.8, 1.8);
+  body.position.set(0, -0.07, 0);
+  body.rotation.set(-0.49, 0.03, -0.02);
   heldDeviceScene.add(body);
   heldDeviceMesh = body;
+}
+
+function hdFillWrapped(ctx, text, x, y, maxW, lineH) {
+  var words = text.split(' ');
+  var line = '';
+  for (var i = 0; i < words.length; i++) {
+    var test = line + words[i] + ' ';
+    if (ctx.measureText(test).width > maxW && i > 0) {
+      ctx.fillText(line.trim(), x, y);
+      line = words[i] + ' ';
+      y += lineH;
+    } else {
+      line = test;
+    }
+  }
+  ctx.fillText(line.trim(), x, y);
+  return y + lineH;
+}
+
+function drawHeldDeviceScreen(now) {
+  if (!heldDeviceScrCtx || !heldDeviceScreenCanvas || !heldDeviceScreenTexture) return;
+  var ctx = heldDeviceScrCtx;
+  var w = heldDeviceScreenCanvas.width;
+  var h = heldDeviceScreenCanvas.height;
+  var R = w / 512;
+  var scOp = 0.92, scBW = 6, scBO = 0.72, scFS = 1.45, scTh = 0.35, scSP = 0.57;
+  var pad = Math.round(12 * scFS * R);
+  var bw  = Math.round(scBW * R);
+  var fs  = Math.round(20 * scFS * R);
+
+  // Background
+  ctx.fillStyle = 'rgba(6,2,14,' + scOp + ')';
+  ctx.fillRect(0, 0, w, h);
+  // Scanlines
+  var sl = Math.max(1, Math.round(R * 2));
+  for (var sy = 0; sy < h; sy += sl * 2) {
+    ctx.fillStyle = 'rgba(0,0,0,0.065)';
+    ctx.fillRect(0, sy, w, sl);
+  }
+  // Inner glow
+  var grd = ctx.createRadialGradient(w * 0.5, h * 0.38, 0, w * 0.5, h * 0.5, w * 0.6);
+  grd.addColorStop(0, 'rgba(255,140,20,0.07)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, w, h);
+  // Border
+  if (bw > 0) {
+    ctx.strokeStyle = 'rgba(255,170,50,' + scBO + ')';
+    ctx.lineWidth = bw;
+    ctx.strokeRect(bw * 0.5, bw * 0.5, w - bw, h - bw);
+  }
+
+  var divY = Math.round(h * scSP);
+  var topY = bw + pad;
+  var data = heldDeviceScanData || {};
+
+  // Type label
+  ctx.fillStyle = 'rgba(255,170,50,0.48)';
+  ctx.font = Math.round(fs * 0.58) + 'px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillText(data.label || '◆ SCANNING', bw + pad, topY);
+
+  // Thumbnail
+  var availH = divY - topY - Math.round(fs * 0.65) - 8 - pad;
+  var thumbH = Math.min(Math.round(h * scTh), availH);
+  var thumbW = thumbH;
+  var thumbX = bw + pad;
+  var thumbY = topY + Math.round(fs * 0.65) + 8;
+  ctx.fillStyle = 'rgba(8,3,18,0.9)';
+  ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
+  ctx.strokeStyle = 'rgba(255,170,50,0.22)';
+  ctx.lineWidth = Math.max(1, Math.round(R));
+  ctx.strokeRect(thumbX + 0.5, thumbY + 0.5, thumbW - 1, thumbH - 1);
+  if (previewRenderer) {
+    try { ctx.drawImage(previewRenderer.domElement, thumbX, thumbY, thumbW, thumbH); } catch(e) {}
+  }
+
+  // Text column
+  var textX    = thumbX + thumbW + Math.round(10 * scFS * R);
+  var textMaxW = w - textX - bw - pad;
+  var textY    = thumbY;
+  ctx.fillStyle = 'rgba(255,200,100,0.95)';
+  ctx.font = 'bold ' + fs + 'px monospace';
+  textY = hdFillWrapped(ctx, data.species || '—', textX, textY, textMaxW, fs + 3);
+  textY += 4;
+  ctx.strokeStyle = 'rgba(255,170,50,0.20)';
+  ctx.lineWidth = Math.max(1, Math.round(R * 0.5));
+  ctx.beginPath(); ctx.moveTo(textX, textY); ctx.lineTo(textX + textMaxW, textY); ctx.stroke();
+  textY += 7;
+  var smFS = Math.round(fs * 0.70);
+  ctx.fillStyle = 'rgba(255,170,50,0.70)';
+  ctx.font = smFS + 'px monospace';
+  textY = hdFillWrapped(ctx, data.desc || '', textX, textY, textMaxW, smFS + 4);
+  textY += 5;
+  var tnFS = Math.round(fs * 0.58);
+  ctx.fillStyle = 'rgba(255,170,50,0.48)';
+  ctx.font = tnFS + 'px monospace';
+  ctx.fillText(data.traits || '', textX, textY);
+
+  // Section divider
+  ctx.strokeStyle = 'rgba(255,170,50,0.18)';
+  ctx.lineWidth = Math.max(1, Math.round(R));
+  ctx.beginPath(); ctx.moveTo(bw + pad, divY); ctx.lineTo(w - bw - pad, divY); ctx.stroke();
+
+  // Lower section — DIST / SIGNAL / RISK
+  var loY  = divY + Math.round(8 * R);
+  var loFS = Math.round(fs * 0.64);
+  var lbFS = Math.round(fs * 0.52);
+  var innerW = w - (bw + pad) * 2;
+  var col  = Math.round(innerW / 3);
+  var x0 = bw + pad, x1 = x0 + col, x2 = x0 + col * 2;
+  ctx.fillStyle = 'rgba(255,170,50,0.38)';
+  ctx.font = lbFS + 'px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillText('DIST', x0, loY);
+  ctx.fillText('SIGNAL', x1, loY);
+  ctx.fillText('RISK', x2, loY);
+  var valY = loY + lbFS + Math.round(4 * R);
+  ctx.fillStyle = 'rgba(255,200,100,0.90)';
+  ctx.font = 'bold ' + loFS + 'px monospace';
+  ctx.fillText('??m', x0, valY);
+  var sbH = Math.round(loFS * 0.62);
+  var sbW = Math.round(col * 0.75);
+  ctx.fillStyle = 'rgba(255,170,50,0.14)';
+  ctx.fillRect(x1, valY, sbW, sbH);
+  ctx.fillStyle = 'rgba(255,170,50,0.78)';
+  ctx.fillRect(x1, valY, Math.round(sbW * 0.73), sbH);
+  ctx.fillStyle = 'rgba(255,200,100,0.88)';
+  ctx.font = lbFS + 'px monospace';
+  ctx.fillText('73%', x1 + sbW + Math.round(4 * R), valY);
+  ctx.fillStyle = 'rgba(70,220,70,0.88)';
+  ctx.font = 'bold ' + loFS + 'px monospace';
+  ctx.fillText('LOW', x2, valY);
+
+  // Full-width animated scan bar
+  var barH  = Math.round(5 * R);
+  var barY  = h - bw - Math.round(pad * 0.6) - barH;
+  var barX  = bw + pad;
+  var barW  = w - (bw + pad) * 2;
+  var fillW = Math.round(barW * 0.28);
+  ctx.fillStyle = 'rgba(255,170,50,0.13)';
+  ctx.fillRect(barX, barY, barW, barH);
+  var phase  = (now * 0.00067) % 1;
+  var barPos = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+  ctx.fillStyle = 'rgba(255,170,50,0.85)';
+  ctx.fillRect(barX + Math.round(barPos * (barW - fillW)), barY, fillW, barH);
+  ctx.fillStyle = 'rgba(255,230,120,0.35)';
+  ctx.fillRect(barX, barY, barW, Math.max(1, Math.round(R)));
+
+  heldDeviceScreenTexture.needsUpdate = true;
 }
 
 function setScanPreview(targetMesh) {
@@ -4787,7 +4931,7 @@ if (minimapExpanded && waypointPanel && waypointPanel.style.display === 'block' 
   }
 }
 
-// Preview renderer (scan card model)
+// Preview thumbnail (renders first so pixels are ready for screen texture readback)
 if (scannerActive && previewRenderer && previewMesh && previewScene && previewCamera) {
   previewRotY += dt * 0.9;
   previewMesh.rotation.y = previewRotY;
@@ -4796,9 +4940,10 @@ if (scannerActive && previewRenderer && previewMesh && previewScene && previewCa
 }
 // Held device renderer (tricorder in hand)
 if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
-  heldDeviceMesh.rotation.y = -0.22 + Math.sin(now * 0.00075) * 0.022;
-  heldDeviceMesh.rotation.z =  0.05 + Math.cos(now * 0.00055) * 0.010;
-  heldDeviceMesh.position.y = -0.15 + Math.sin(now * 0.00095) * 0.005;
+  if (heldDeviceScreenTexture) drawHeldDeviceScreen(now);
+  heldDeviceMesh.rotation.y = 0.03 + Math.sin(now * 0.00075) * 0.022;
+  heldDeviceMesh.rotation.z = -0.02 + Math.cos(now * 0.00055) * 0.010;
+  heldDeviceMesh.position.y = -0.07 + Math.sin(now * 0.00095) * 0.005;
   heldDeviceRenderer.render(heldDeviceScene, heldDeviceCamera);
 }
 

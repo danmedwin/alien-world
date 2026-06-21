@@ -2843,7 +2843,7 @@ function initHeldDevice() {
   if (!canvas || heldDeviceRenderer) return;
   var W = 395, H = 700;
   heldDeviceRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-  heldDeviceRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  heldDeviceRenderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
   heldDeviceRenderer.setSize(W, H, false);
   heldDeviceRenderer.setClearColor(0x000000, 0);
   heldDeviceScene = new THREE.Scene();

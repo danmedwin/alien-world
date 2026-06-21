@@ -1740,7 +1740,6 @@ function showPickupNotification(text) {
 }
 
 function selectSlot(i) {
-  // Deactivate current item if it has an onDeactivate
   const currentItem = inventory[activeSlot];
   if (currentItem && currentItem.active && currentItem.onDeactivate) {
     currentItem.onDeactivate();
@@ -1748,6 +1747,8 @@ function selectSlot(i) {
   }
   activeSlot = i;
   updateHotbarUI();
+  const newItem = inventory[i];
+  if (newItem && newItem.autoActivate && !newItem.active) useActiveItem();
 }
 
 function useActiveItem() {
@@ -1817,7 +1818,6 @@ document.addEventListener('keydown', e => {
 });
 
 // Touch: tap slots to select, tap active slot again to use
-// Scanner auto-activates when its slot is selected
 hotbarSlots.forEach((slot, i) => {
   function handleSlotTap() {
     var item = inventory[i];
@@ -1825,8 +1825,7 @@ hotbarSlots.forEach((slot, i) => {
     if (activeSlot === i) {
       useActiveItem();
     } else {
-      selectSlot(i);
-      if (item === tricorderItem && !item.active) useActiveItem();
+      selectSlot(i); // auto-activates if item.autoActivate is set
     }
   }
   slot.addEventListener('click', e => { e.stopPropagation(); handleSlotTap(); });
@@ -2007,6 +2006,7 @@ scene.add(arrowGroup);
 var locatorItem = {
   name: 'Locator',
   icon: '◉',
+  autoActivate: true,
   active: false,
   onUse: function() {
     if (waypoints.length === 0) {
@@ -2487,6 +2487,7 @@ var scannerReadout = null;
 var tricorderItem = {
   name: 'Scanner',
   icon: '\u{1F4F1}',
+  autoActivate: true,
   active: false,
   onUse: function() {
     if (this.active) {

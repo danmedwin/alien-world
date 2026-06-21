@@ -1789,16 +1789,25 @@ document.addEventListener('keydown', e => {
     // Zoom in
     if (zoomIdx < ZOOM_LEVELS.length - 1) { zoomIdx++; updateZoomFromIdx(); }
   }
-  if (e.code === 'Space' && !MOBILE && started) {
+  if (e.code === 'Space' && !MOBILE && started && !e.repeat) {
     e.preventDefault();
     var spaceNow = Date.now();
     if (spaceNow - lastSpaceTime < 350) {
       // Double-tap: toggle free-fly
-      flyMode = !flyMode;
-      velY = 0; playerJumping = false; jumpHeld = false;
-      playerGrounded = !flyMode;
-      document.getElementById('fly-indicator').style.display = flyMode ? 'block' : 'none';
-      if (flyMode) playFlyPowerUp();
+      if (flyMode) {
+        flyMode = false; jumpHeld = false;
+        var floorY = getHeight(camera.position.x, camera.position.z) + 2.5;
+        if (camera.position.y > floorY + 0.3) {
+          playerJumping = true; playerGrounded = false; velY = 0;
+        } else {
+          playerJumping = false; playerGrounded = true; velY = 0;
+        }
+        document.getElementById('fly-indicator').style.display = 'none';
+      } else {
+        flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
+        document.getElementById('fly-indicator').style.display = 'block';
+        playFlyPowerUp();
+      }
       lastSpaceTime = 0;
     } else {
       // Single tap: small initial pop + hold boost
@@ -3439,10 +3448,20 @@ jumpBtn.addEventListener('touchstart', function(e) {
   if (!started) return;
   var spaceNow = Date.now();
   if (spaceNow - lastSpaceTime < 350) {
-    flyMode = !flyMode;
-    velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = !flyMode;
-    document.getElementById('fly-indicator').style.display = flyMode ? 'block' : 'none';
-    if (flyMode) playFlyPowerUp();
+    if (flyMode) {
+      flyMode = false; jumpHeld = false;
+      var floorY = getHeight(camera.position.x, camera.position.z) + 2.5;
+      if (camera.position.y > floorY + 0.3) {
+        playerJumping = true; playerGrounded = false; velY = 0;
+      } else {
+        playerJumping = false; playerGrounded = true; velY = 0;
+      }
+      document.getElementById('fly-indicator').style.display = 'none';
+    } else {
+      flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
+      document.getElementById('fly-indicator').style.display = 'block';
+      playFlyPowerUp();
+    }
     lastSpaceTime = 0;
   } else {
     if (!flyMode && playerGrounded) {

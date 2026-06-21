@@ -445,14 +445,22 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   background:rgba(20,6,45,0.88);
   border:1px solid rgba(255,170,50,0.4);
   border-radius:8px;
-  padding:8px 14px;
+  padding:8px 12px 8px 8px;
   font-family:monospace;
   color:rgba(255,170,50,0.9);
   pointer-events:none;
   z-index:8;
-  min-width:160px;
-  text-align:center;
   transition:opacity 0.2s;
+  align-items:flex-start;
+  gap:10px;
+}
+#scan-card-text {
+  flex:1;
+  min-width:130px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  min-height:88px;
 }
 #scan-card-type {
   font-size:8px;
@@ -496,7 +504,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   50% { width:60%; margin-left:40%; }
 }
 #scan-preview-wrap {
-  margin: 5px auto 4px;
+  flex-shrink: 0;
   width: 88px;
   height: 88px;
   border: 1px solid rgba(255,170,50,0.22);
@@ -677,7 +685,6 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 </div>
 
 <div id="scan-card">
-  <div id="scan-card-type"></div>
   <div id="scan-preview-wrap">
     <canvas id="scan-preview-canvas" width="88" height="88"></canvas>
     <div class="scan-corner tl"></div>
@@ -685,10 +692,13 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
     <div class="scan-corner bl"></div>
     <div class="scan-corner br"></div>
   </div>
-  <div id="scan-card-species"></div>
-  <div id="scan-card-desc"></div>
-  <div id="scan-card-traits"></div>
-  <div id="scan-card-bar"></div>
+  <div id="scan-card-text">
+    <div id="scan-card-type"></div>
+    <div id="scan-card-species"></div>
+    <div id="scan-card-desc"></div>
+    <div id="scan-card-traits"></div>
+    <div id="scan-card-bar"></div>
+  </div>
 </div>
 
 <div id="waypoint-panel">
@@ -2390,12 +2400,12 @@ function initScanCard() {
     previewCamera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
     previewCamera.position.set(0, 0.6, 4.5);
     previewCamera.lookAt(0, 0, 0);
-    var pAmb = new THREE.AmbientLight(0x221133, 0.8);
+    var pAmb = new THREE.AmbientLight(0xffffff, 0.45);
     previewScene.add(pAmb);
-    var pKey = new THREE.DirectionalLight(0xff9933, 1.5);
+    var pKey = new THREE.DirectionalLight(0xffffff, 1.0);
     pKey.position.set(2, 3, 3);
     previewScene.add(pKey);
-    var pFill = new THREE.DirectionalLight(0x4422aa, 0.5);
+    var pFill = new THREE.DirectionalLight(0xaaaacc, 0.3);
     pFill.position.set(-2, -1, -2);
     previewScene.add(pFill);
   }
@@ -2412,7 +2422,7 @@ function showScanCard(data) {
   scanCardSpecies.textContent = data.species;
   scanCardDesc.textContent = data.desc;
   scanCardTraits.textContent = data.traits;
-  scanCard.style.display = 'block';
+  scanCard.style.display = 'flex';
 }
 
 function hideScanCard() {
@@ -2434,13 +2444,15 @@ function setScanPreview(targetMesh) {
   geo.computeBoundingSphere();
   var radius = (geo.boundingSphere && geo.boundingSphere.radius > 0) ? geo.boundingSphere.radius : 1;
   var scale = 1.4 / radius;
-  var baseColor = (targetMesh.material && targetMesh.material.color) ? targetMesh.material.color.clone() : new THREE.Color(0.6, 0.35, 0.1);
+  var srcMat = targetMesh.material;
+  var baseColor = (srcMat && srcMat.color) ? srcMat.color.clone() : new THREE.Color(0.5, 0.5, 0.5);
+  var baseEmissive = (srcMat && srcMat.emissive) ? srcMat.emissive.clone() : new THREE.Color(0, 0, 0);
   var pMat = new THREE.MeshLambertMaterial({
     color: baseColor,
-    emissive: new THREE.Color(0.28, 0.07, 0.0),
+    emissive: baseEmissive,
     emissiveIntensity: 1,
-    transparent: true,
-    opacity: 0.92
+    transparent: srcMat ? srcMat.transparent : false,
+    opacity: (srcMat && srcMat.opacity != null) ? srcMat.opacity : 1.0
   });
   previewMesh = new THREE.Mesh(geo, pMat);
   previewMesh.scale.set(scale, scale, scale);

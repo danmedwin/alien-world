@@ -660,7 +660,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.7</div>
+<div id="version-tag">v7.8</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -1795,15 +1795,7 @@ document.addEventListener('keydown', e => {
     if (spaceNow - lastSpaceTime < 350) {
       // Double-tap: toggle free-fly
       if (flyMode) {
-        flyMode = false; jumpHeld = false;
-        var floorY = getHeight(camera.position.x, camera.position.z) + 2.5;
-        if (camera.position.y > floorY + 0.3) {
-          playerJumping = true; playerGrounded = false; velY = 0;
-        } else {
-          playerJumping = false; playerGrounded = true; velY = 0;
-        }
-        document.getElementById('fly-indicator').style.display = 'none';
-        updateJumpBtnIcon();
+        deactivateFlyMode();
       } else {
         flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
         document.getElementById('fly-indicator').style.display = 'block';
@@ -1860,6 +1852,39 @@ var jumpSprint = false;
 var flyMode = false;
 var lastSpaceTime = 0;
 var jumpBtnHeld = false;
+var beaconPillarParticles = null;
+var scannerPillarMesh = null, scannerPillarCore = null, scannerPillarGlow = null, scannerPillarParticles = null;
+
+function playFlyPowerDown() {
+  var ctx = getOrCreateAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime, dur = 0.75;
+  var turb = ctx.createOscillator(), turbG = ctx.createGain();
+  turb.type = 'sawtooth';
+  turb.frequency.setValueAtTime(480, t); turb.frequency.exponentialRampToValueAtTime(55, t + dur * 0.9);
+  turbG.gain.setValueAtTime(0.18, t); turbG.gain.linearRampToValueAtTime(0, t + dur);
+  turb.connect(turbG); turbG.connect(ctx.destination); turb.start(t); turb.stop(t + dur);
+  var shim = ctx.createOscillator(), shimG = ctx.createGain();
+  shim.type = 'sine';
+  shim.frequency.setValueAtTime(1600, t); shim.frequency.exponentialRampToValueAtTime(100, t + dur * 0.85);
+  shimG.gain.setValueAtTime(0.18, t); shimG.gain.linearRampToValueAtTime(0, t + dur * 0.7);
+  shim.connect(shimG); shimG.connect(ctx.destination); shim.start(t); shim.stop(t + dur);
+  var thud = ctx.createOscillator(), thudG = ctx.createGain();
+  thud.type = 'sine'; thud.frequency.setValueAtTime(85, t + dur * 0.7); thud.frequency.exponentialRampToValueAtTime(28, t + dur);
+  thudG.gain.setValueAtTime(0, t + dur * 0.7); thudG.gain.linearRampToValueAtTime(0.18, t + dur * 0.8); thudG.gain.linearRampToValueAtTime(0, t + dur + 0.05);
+  thud.connect(thudG); thudG.connect(ctx.destination); thud.start(t + dur * 0.7); thud.stop(t + dur + 0.1);
+}
+function deactivateFlyMode() {
+  flyMode = false; jumpHeld = false; jumpBtnHeld = false;
+  var floorY = getHeight(camera.position.x, camera.position.z) + 2.5;
+  if (camera.position.y > floorY + 0.3) {
+    playerJumping = true; playerGrounded = false; velY = 0;
+  } else {
+    playerJumping = false; playerGrounded = true; velY = 0;
+  }
+  document.getElementById('fly-indicator').style.display = 'none';
+  updateJumpBtnIcon();
+  playFlyPowerDown();
+}
 function updateJumpBtnIcon() {
   var btn = document.getElementById('jump-btn'); if (!btn) return;
   if (flyMode) {
@@ -2082,27 +2107,39 @@ beaconGroup.add(fobDot);
 const devRing = { rotation: { y: 0 } };
 scene.add(beaconGroup);
 
-// Downward light beam from above, pointing at the device
+// Pillar / column of light above the beacon
 const beaconBeamGroup = new THREE.Group();
 beaconBeamGroup.position.set(beaconX, beaconTerrY, beaconZ);
-// Cone of light pointing down
-const beamGeo = new THREE.CylinderGeometry(0.15, 1.5, 12, 16, 1, true);
-const beamMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
-const beamMesh = new THREE.Mesh(beamGeo, beamMat);
-beamMesh.position.y = 7; // center of beam
+const beamMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.09, side: THREE.DoubleSide });
+const beamMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 28, 16, 1, true), beamMat);
+beamMesh.position.y = 14;
 beaconBeamGroup.add(beamMesh);
-// Brighter inner core
-const beamCoreGeo = new THREE.CylinderGeometry(0.05, 0.4, 12, 12, 1, true);
-const beamCoreMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
-const beamCore = new THREE.Mesh(beamCoreGeo, beamCoreMat);
-beamCore.position.y = 7;
+const beamCoreMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.28, side: THREE.DoubleSide });
+const beamCore = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 28, 8, 1, true), beamCoreMat);
+beamCore.position.y = 14;
 beaconBeamGroup.add(beamCore);
-// Ground glow ring where beam hits
 const groundGlowMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
-const groundGlow = new THREE.Mesh(new THREE.RingGeometry(0.2, 1.5, 16), groundGlowMat);
+const groundGlow = new THREE.Mesh(new THREE.RingGeometry(0.2, 1.8, 16), groundGlowMat);
 groundGlow.rotation.x = -Math.PI / 2;
 groundGlow.position.y = 0.05;
 beaconBeamGroup.add(groundGlow);
+var bpParticlePos = new Float32Array(80 * 3);
+for (var bpi = 0; bpi < 80; bpi++) {
+  var bpAngle = Math.random() * Math.PI * 2;
+  var bpDist = 0.2 + Math.random() * 1.1;
+  bpParticlePos[bpi*3]   = Math.cos(bpAngle) * bpDist;
+  bpParticlePos[bpi*3+1] = Math.random() * 27;
+  bpParticlePos[bpi*3+2] = Math.sin(bpAngle) * bpDist;
+}
+var bpPGeo = new THREE.BufferGeometry();
+bpPGeo.setAttribute('position', new THREE.Float32BufferAttribute(bpParticlePos, 3));
+beaconPillarParticles = new THREE.Points(bpPGeo, new THREE.PointsMaterial({
+  map: dotTexture, color: 0x44ff88,
+  size: MOBILE ? 0.07 : 0.09,
+  transparent: true, opacity: 0.55,
+  sizeAttenuation: true, depthWrite: false, alphaTest: 0.01
+}));
+beaconBeamGroup.add(beaconPillarParticles);
 scene.add(beaconBeamGroup);
 
 // ── Chip Pickup Objects (add waypoints when collected) ────────
@@ -2406,6 +2443,38 @@ function spawnTricorder() {
     sizeAttenuation: true, depthWrite: false, alphaTest: 0.01
   }));
   tcBody.add(tricorderParticleCloud);
+
+  // Gold/amber pillar of light marking the scanner location
+  var spPillarMat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.09, side: THREE.DoubleSide });
+  scannerPillarMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 28, 16, 1, true), spPillarMat);
+  scannerPillarMesh.position.set(ARTIFACT_X, artifactTerrY + 14, ARTIFACT_Z);
+  scene.add(scannerPillarMesh);
+  var spCoreMat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+  scannerPillarCore = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 28, 8, 1, true), spCoreMat);
+  scannerPillarCore.position.set(ARTIFACT_X, artifactTerrY + 14, ARTIFACT_Z);
+  scene.add(scannerPillarCore);
+  var spGlowMat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+  scannerPillarGlow = new THREE.Mesh(new THREE.RingGeometry(0.3, 2.0, 16), spGlowMat);
+  scannerPillarGlow.rotation.x = -Math.PI / 2;
+  scannerPillarGlow.position.set(ARTIFACT_X, artifactTerrY + 0.08, ARTIFACT_Z);
+  scene.add(scannerPillarGlow);
+  var spPPos = new Float32Array(80 * 3);
+  for (var spi = 0; spi < 80; spi++) {
+    var spAng = Math.random() * Math.PI * 2;
+    var spDist = 0.25 + Math.random() * 1.1;
+    spPPos[spi*3]   = Math.cos(spAng) * spDist;
+    spPPos[spi*3+1] = (Math.random() * 28) - 14;
+    spPPos[spi*3+2] = Math.sin(spAng) * spDist;
+  }
+  var spPGeo = new THREE.BufferGeometry();
+  spPGeo.setAttribute('position', new THREE.Float32BufferAttribute(spPPos, 3));
+  scannerPillarParticles = new THREE.Points(spPGeo, new THREE.PointsMaterial({
+    map: dotTexture, color: 0xffaa44,
+    size: MOBILE ? 0.07 : 0.09,
+    transparent: true, opacity: 0.55,
+    sizeAttenuation: true, depthWrite: false, alphaTest: 0.01
+  }));
+  scannerPillarMesh.add(scannerPillarParticles);
 
   showPickupNotification('A device has appeared...');
 }
@@ -2869,7 +2938,7 @@ minimapZoom.innerHTML = '<button id="mz-out">−</button><input type="range" id=
 document.body.appendChild(minimapZoom);
 
 const ZOOM_LEVELS = [500, 400, 300, 200, 160, 120, 80, 60, 40, 25];
-let zoomIdx = 6; // default 80
+let zoomIdx = 5; // default 120 — shows locator on startup
 
 function updateZoomFromIdx() {
   minimapRange = ZOOM_LEVELS[zoomIdx];
@@ -3398,8 +3467,12 @@ if (flyMode) {
   if (!MOBILE && (keys['ShiftLeft'] || keys['ShiftRight'])) camera.position.y -= 5 * dt;
   if (MOBILE && jumpBtnHeld) camera.position.y -= 4 * dt;
   var flyFloor = getHeight(camera.position.x, camera.position.z) + 2.5;
-  if (camera.position.y < flyFloor) camera.position.y = flyFloor;
-  playerGrounded = false;
+  if (camera.position.y <= flyFloor) {
+    camera.position.y = flyFloor;
+    deactivateFlyMode();
+  } else {
+    playerGrounded = false;
+  }
 } else {
   // Normal horizontal movement with wall collision
   const newX = camera.position.x + (forward.x * fwd + rightVec.x * right) * spd;
@@ -3462,15 +3535,7 @@ jumpBtn.addEventListener('touchstart', function(e) {
   var spaceNow = Date.now();
   if (spaceNow - lastSpaceTime < 350) {
     if (flyMode) {
-      flyMode = false; jumpHeld = false; jumpBtnHeld = false;
-      var floorY = getHeight(camera.position.x, camera.position.z) + 2.5;
-      if (camera.position.y > floorY + 0.3) {
-        playerJumping = true; playerGrounded = false; velY = 0;
-      } else {
-        playerJumping = false; playerGrounded = true; velY = 0;
-      }
-      document.getElementById('fly-indicator').style.display = 'none';
-      updateJumpBtnIcon();
+      deactivateFlyMode();
     } else {
       flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
       document.getElementById('fly-indicator').style.display = 'block';
@@ -4100,6 +4165,7 @@ function applyLoadedState() {
     beaconPickedUp = true;
     scene.remove(beaconGroup);
     scene.remove(beaconBeamGroup);
+    beaconPillarParticles = null;
     addToInventory(locatorItem);
   }
 
@@ -4377,12 +4443,14 @@ if (!beaconPickedUp) {
   beamMat.opacity = 0.08 + Math.sin(now * 0.001 * 1.5) * 0.05;
   beamCoreMat.opacity = 0.2 + Math.sin(now * 0.001 * 2) * 0.08;
   groundGlowMat.opacity = 0.2 + Math.sin(now * 0.001 * 1.5) * 0.1;
+  if (beaconPillarParticles) beaconPillarParticles.rotation.y += dt * 0.35;
   // Auto-pickup when player is within 3 units
   const bdx = camera.position.x - beaconX, bdz = camera.position.z - beaconZ;
   if (bdx*bdx + bdz*bdz < 9) { // 3 units squared
     beaconPickedUp = true;
     scene.remove(beaconGroup);
     scene.remove(beaconBeamGroup);
+    beaconPillarParticles = null;
     addToInventory(locatorItem);
     var _lSlot = inventory.indexOf(locatorItem);
     if (_lSlot >= 0) {
@@ -4453,11 +4521,16 @@ if (tricorderSpawned && !tricorderPickedUp && tricorderMesh) {
     tricorderParticleCloud.rotation.y -= dt * 0.7;
     tricorderParticleCloud.rotation.x = Math.sin(now * 0.0005) * 0.4;
   }
+  if (scannerPillarMesh) scannerPillarMesh.rotation.y += dt * 0.35;
   var tdx = camera.position.x - ARTIFACT_X;
   var tdz = camera.position.z - ARTIFACT_Z;
   if (tdx*tdx + tdz*tdz < 2.25) {
     tricorderPickedUp = true;
     scene.remove(tricorderMesh);
+    scene.remove(scannerPillarMesh);
+    scene.remove(scannerPillarCore);
+    scene.remove(scannerPillarGlow);
+    scannerPillarMesh = scannerPillarCore = scannerPillarGlow = scannerPillarParticles = null;
     addToInventory(tricorderItem);
     tricorderGlowLight = null;
     tricorderParticleCloud = null;

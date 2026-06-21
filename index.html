@@ -656,7 +656,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.1</div>
+<div id="version-tag">v7.2</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -3240,7 +3240,7 @@ jZone.addEventListener('touchcancel',jEnd, { passive: true });
 const SPEED = 0.13, SPRINT = 2.5;
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
-function doMove() {
+function doMove(dt) {
 if (!started) return;
 const terrainH = getHeight(camera.position.x, camera.position.z);
 const isUnderwater = camera.position.y < WATER_LEVEL;
@@ -3251,10 +3251,21 @@ else if (isWading) speedMult = 0.65;
 
 const sp = (keys['ShiftLeft']||keys['ShiftRight']||jSprinting) ? SPRINT : 1;
 let fwd=0, right=0;
-if (keys['KeyW']||keys['ArrowUp']) fwd++;
-if (keys['KeyS']||keys['ArrowDown']) fwd--;
-if (keys['KeyA']||keys['ArrowLeft']) right--;
-if (keys['KeyD']||keys['ArrowRight']) right++;
+if (keys['KeyW']) fwd++;
+if (keys['KeyS']) fwd--;
+if (keys['KeyA']) right--;
+if (keys['KeyD']) right++;
+// Arrow keys: look control (desktop only)
+if (!MOBILE) {
+  var lookRate = 1.8 * dt;
+  if (keys['ArrowLeft'])  yaw  += lookRate;
+  if (keys['ArrowRight']) yaw  -= lookRate;
+  if (keys['ArrowUp'])    pitch -= lookRate;
+  if (keys['ArrowDown'])  pitch += lookRate;
+  if (keys['ArrowLeft']||keys['ArrowRight']||keys['ArrowUp']||keys['ArrowDown']) {
+    pitch = Math.max(-1.3, Math.min(1.3, pitch));
+  }
+}
 fwd -= jDz;
 right += jDx;
 const spd = SPEED * sp * speedMult;
@@ -4086,7 +4097,7 @@ scene.fog.far = BASE_FOG_FAR * (1 - stormI * 0.3);
 }
 
 // Movement
-doMove();
+doMove(dt);
 euler.set(pitch, yaw, 0, 'YXZ');
 camera.quaternion.setFromEuler(euler);
 

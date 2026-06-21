@@ -22,7 +22,10 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #continueBtn:hover { background:rgba(75,25,130,0.55); }
 #version-tag { position:absolute;bottom:10px;right:14px;font-size:10px;color:rgba(160,130,200,0.3);font-family:monospace;letter-spacing:0.05em;pointer-events:none; }
 #hint { font-size:11px;color:rgba(160,130,200,0.5);margin-top:16px;line-height:1.9; }
-#ui { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap; }
+#ui { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap;transition:opacity 2s ease; }
+#fly-indicator { display:none;position:absolute;top:14px;left:50%;transform:translateX(-50%);color:rgba(140,220,255,0.65);font-family:monospace;font-size:10px;letter-spacing:0.12em;pointer-events:none;z-index:8; }
+#jump-btn { display:none;position:absolute;bottom:123px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(180,140,255,0.18);border:1.5px solid rgba(200,170,255,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
+#jump-btn:active { background:rgba(180,140,255,0.35); }
 #joystick-zone { position:absolute;bottom:90px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
 #joystick-base { width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(200,170,255,0.25);position:relative; }
 #joystick-thumb { width:46px;height:46px;border-radius:50%;background:rgba(180,140,255,0.25);border:1.5px solid rgba(200,170,255,0.45);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
@@ -613,7 +616,8 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <body>
 <canvas id="c"></canvas>
 <div id="crosshair"></div>
-<div id="ui">WASD to move | mouse to look | shift to sprint | ESC to release mouse</div>
+<div id="ui">WASD move · mouse/arrows look · space jump · space×2 fly · shift sprint · ESC release</div>
+<div id="fly-indicator">✦ FLYING — double-tap space to land</div>
 
 <!-- HUD Layout -->
 <div id="hud-layer">
@@ -656,10 +660,11 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.2</div>
+<div id="version-tag">v7.3</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
+<div id="jump-btn"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
 <div id="underwater-overlay"></div>
 
 <div id="hotbar">
@@ -733,6 +738,18 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 </div>
 </div>
 
+<!-- Desktop Controls (shown on desktop only) -->
+<div class="settings-section" id="desktop-controls-section" style="display:none">
+<div class="settings-section-title">Controls</div>
+<div style="color:rgba(180,150,220,0.65);font-size:11px;line-height:2.1;font-family:monospace;">
+WASD — move &nbsp;·&nbsp; Shift — sprint<br>
+Mouse / arrows — look<br>
+Space — jump &nbsp;·&nbsp; Space ×2 — fly mode<br>
+F / 1-6 — use item &nbsp;·&nbsp; M — minimap<br>
+ESC — release cursor
+</div>
+</div>
+
 <!-- Look Inversion -->
 <div class="settings-section">
 <div class="settings-section-title">Look</div>
@@ -773,8 +790,8 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <option value="top-left">Top-Left</option>
 <option value="top-right">Top-Right</option>
 <option value="bottom-left">Bottom-Left</option>
-<option value="bottom-right" selected>Bottom-Right</option>
-<option value="hidden">Hidden</option>
+<option value="bottom-right">Bottom-Right</option>
+<option value="hidden" selected>Hidden</option>
 </select>
 </div>
 <div class="settings-row">
@@ -793,8 +810,8 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <option value="top-left">Top-Left</option>
 <option value="top-right">Top-Right</option>
 <option value="bottom-left">Bottom-Left</option>
-<option value="bottom-right" selected>Bottom-Right</option>
-<option value="hidden">Hidden</option>
+<option value="bottom-right">Bottom-Right</option>
+<option value="hidden" selected>Hidden</option>
 </select>
 </div>
 <div class="settings-row">
@@ -1772,6 +1789,27 @@ document.addEventListener('keydown', e => {
     // Zoom in
     if (zoomIdx < ZOOM_LEVELS.length - 1) { zoomIdx++; updateZoomFromIdx(); }
   }
+  if (e.code === 'Space' && !MOBILE && started) {
+    e.preventDefault();
+    var spaceNow = Date.now();
+    if (spaceNow - lastSpaceTime < 350) {
+      // Double-tap: toggle free-fly
+      flyMode = !flyMode;
+      velY = 0;
+      playerJumping = false;
+      playerGrounded = !flyMode;
+      document.getElementById('fly-indicator').style.display = flyMode ? 'block' : 'none';
+      lastSpaceTime = 0;
+    } else {
+      // Single tap: jump if grounded
+      if (!flyMode && playerGrounded) {
+        playerJumping = true;
+        playerGrounded = false;
+        velY = 7.5;
+      }
+      lastSpaceTime = spaceNow;
+    }
+  }
 });
 
 // Touch: tap slots to select, tap active slot again to use
@@ -1799,6 +1837,11 @@ waypoints.push({ name: 'Spawn', x: 0, z: 0, color: '#ffffff', type: 'fixed' });
 var activeWaypointIdx = -1;
 var locatorActive = false;
 var locatorSettleTime = 0;
+var velY = 0;
+var playerJumping = false;
+var playerGrounded = true;
+var flyMode = false;
+var lastSpaceTime = 0;
 
 // 3D holographic arrow — extruded chevron with tail, clear directionality
 const arrowGroup = new THREE.Group();
@@ -2534,9 +2577,9 @@ let menuOpen = false;
 // ── HUD Position System ────────────────────────────────────────
 const hudPositions = {
   coords: 'top-left',
-  compass: 'bottom-right',
+  compass: 'hidden',
   minimap: 'top-left',
-  time: 'bottom-right',
+  time: 'hidden',
   fps: 'hidden'
 };
 
@@ -3275,21 +3318,46 @@ forward.y = 0;
 forward.normalize();
 const rightVec = new THREE.Vector3();
 rightVec.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-// Try to move, but check wall collision first
-const newX = camera.position.x + (forward.x * fwd + rightVec.x * right) * spd;
-const newZ = camera.position.z + (forward.z * fwd + rightVec.z * right) * spd;
-// Slide along walls: try X and Z independently
-if (!checkWallCollision(newX, camera.position.z)) camera.position.x = newX;
-if (!checkWallCollision(camera.position.x, newZ)) camera.position.z = newZ;
-// Use ruins floor height if inside the ruins footprint (within 20 units of artifact center)
-let ty = getHeight(camera.position.x, camera.position.z) + 2.5;
-const ruinDx = camera.position.x - ARTIFACT_X;
-const ruinDz = camera.position.z - ARTIFACT_Z;
-if (ruinDx * ruinDx + ruinDz * ruinDz < 20 * 20) {
-  ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
+if (flyMode) {
+  // Free-fly: W/S follow full 3D camera direction (pitch = altitude)
+  var camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  var flySpd = spd * 1.5;
+  camera.position.x += (camDir.x * fwd + rightVec.x * right) * flySpd;
+  camera.position.y += camDir.y * fwd * flySpd;
+  camera.position.z += (camDir.z * fwd + rightVec.z * right) * flySpd;
+  // Prevent clipping through terrain
+  var flyFloor = getHeight(camera.position.x, camera.position.z) + 2.5;
+  if (camera.position.y < flyFloor) camera.position.y = flyFloor;
+  playerGrounded = false;
+} else {
+  // Normal horizontal movement with wall collision
+  const newX = camera.position.x + (forward.x * fwd + rightVec.x * right) * spd;
+  const newZ = camera.position.z + (forward.z * fwd + rightVec.z * right) * spd;
+  if (!checkWallCollision(newX, camera.position.z)) camera.position.x = newX;
+  if (!checkWallCollision(camera.position.x, newZ)) camera.position.z = newZ;
+  // Floor height (ruins adjustment)
+  let ty = getHeight(camera.position.x, camera.position.z) + 2.5;
+  const ruinDx = camera.position.x - ARTIFACT_X;
+  const ruinDz = camera.position.z - ARTIFACT_Z;
+  if (ruinDx * ruinDx + ruinDz * ruinDz < 20 * 20) {
+    ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
+  }
+  if (playerJumping) {
+    velY += -22 * dt;
+    camera.position.y += velY * dt;
+    if (camera.position.y <= ty) {
+      camera.position.y = ty;
+      velY = 0;
+      playerJumping = false;
+      playerGrounded = true;
+    }
+  } else {
+    playerGrounded = true;
+    const lerpFactor = isUnderwater ? 0.1 : 0.2;
+    camera.position.y += (ty - camera.position.y) * lerpFactor;
+  }
 }
-const lerpFactor = isUnderwater ? 0.1 : 0.2;
-camera.position.y += (ty - camera.position.y) * lerpFactor;
 }
 
 // ── Menu / Settings ────────────────────────────────────────────
@@ -3302,8 +3370,28 @@ const joyLeftBtn = document.getElementById('joy-left');
 const joyRightBtn = document.getElementById('joy-right');
 const joystickSection = document.getElementById('joystick-section');
 
-// Show joystick section only on mobile
+// Show joystick section only on mobile; show controls ref only on desktop
 if (MOBILE) joystickSection.style.display = '';
+else document.getElementById('desktop-controls-section').style.display = '';
+
+// Mobile jump button
+var jumpBtn = document.getElementById('jump-btn');
+jumpBtn.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  if (!started) return;
+  var spaceNow = Date.now();
+  if (spaceNow - lastSpaceTime < 350) {
+    flyMode = !flyMode;
+    velY = 0; playerJumping = false; playerGrounded = !flyMode;
+    document.getElementById('fly-indicator').style.display = flyMode ? 'block' : 'none';
+    lastSpaceTime = 0;
+  } else {
+    if (!flyMode && playerGrounded) {
+      playerJumping = true; playerGrounded = false; velY = 7.5;
+    }
+    lastSpaceTime = spaceNow;
+  }
+}, { passive: false });
 
 function openMenu() {
 menuOpen = true;
@@ -3983,8 +4071,16 @@ function _doStartGame() {
   document.getElementById('crosshair').style.display = 'block';
   menuBtn.style.display = 'flex';
   hotbar.style.display = 'flex';
-  if (!MOBILE) { document.getElementById('ui').style.display='block'; canvas.requestPointerLock(); }
-  else { jZone.style.display='block'; }
+  if (!MOBILE) {
+    var uiEl = document.getElementById('ui');
+    uiEl.style.display = 'block';
+    uiEl.style.opacity = '1';
+    canvas.requestPointerLock();
+    setTimeout(function() { uiEl.style.opacity = '0'; }, 60000);
+  } else {
+    jZone.style.display = 'block';
+    document.getElementById('jump-btn').style.display = 'flex';
+  }
   lastCX = null; lastCZ = null;
 }
 

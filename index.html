@@ -13,11 +13,14 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #crosshair::before { width:2px;height:18px;left:8px;top:0; }
 #crosshair::after { width:18px;height:2px;top:8px;left:0; }
 #overlay { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,0,15,0.85);z-index:20; }
-#startCard { background:rgba(30,10,55,0.95);border:1px solid rgba(160,100,255,0.4);border-radius:12px;padding:36px 48px;text-align:center;color:#c8aaff;max-width:380px; }
+#startCard { background:rgba(30,10,55,0.95);border:1px solid rgba(160,100,255,0.4);border-radius:12px;padding:36px 48px;text-align:center;color:#c8aaff;max-width:380px;position:relative; }
 #startCard h1 { font-size:24px;font-weight:500;margin-bottom:8px;color:#e0ccff;letter-spacing:0.1em; }
 #startCard p { font-size:13px;color:rgba(180,150,220,0.75);margin-bottom:24px;line-height:1.7; }
 #startBtn { background:rgba(100,50,180,0.55);color:#d8bfff;border:1px solid rgba(160,100,255,0.55);padding:12px 32px;font-family:monospace;font-size:15px;cursor:pointer;border-radius:8px;letter-spacing:0.06em; }
 #startBtn:hover { background:rgba(130,70,210,0.7); }
+#continueBtn { display:none;background:rgba(50,15,90,0.45);color:rgba(180,150,220,0.75);border:1px solid rgba(130,80,210,0.4);padding:10px 32px;font-family:monospace;font-size:13px;cursor:pointer;border-radius:8px;letter-spacing:0.06em;margin-top:10px; }
+#continueBtn:hover { background:rgba(75,25,130,0.55); }
+#version-tag { position:absolute;bottom:10px;right:14px;font-size:10px;color:rgba(160,130,200,0.3);font-family:monospace;letter-spacing:0.05em;pointer-events:none; }
 #hint { font-size:11px;color:rgba(160,130,200,0.5);margin-top:16px;line-height:1.9; }
 #ui { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap; }
 #joystick-zone { position:absolute;bottom:90px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
@@ -651,7 +654,9 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <h1>KEPLER-7X</h1>
 <p>An alien world of crystal spires, bioluminescent flora, and endless purple highlands.</p>
 <button id="startBtn">ENTER WORLD</button>
+<button id="continueBtn">CONTINUE EXPLORING</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
+<div id="version-tag">v7.0</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -3814,17 +3819,146 @@ function updateGroundCreatures(dt) {
   }
 }
 
+// ── Save / Load ────────────────────────────────────────────────
+var SAVE_KEY = 'kepler7x_v1';
+
+function hasSave() {
+  try { return !!localStorage.getItem(SAVE_KEY); } catch(e) { return false; }
+}
+
+function saveGame() {
+  if (!started) return;
+  var pins = [];
+  for (var _si = 0; _si < waypoints.length; _si++) {
+    if (waypoints[_si].type === 'pin') pins.push(waypoints[_si]);
+  }
+  var wpName = (activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) ? waypoints[activeWaypointIdx].name : null;
+  var data = {
+    px: camera.position.x, py: camera.position.y, pz: camera.position.z,
+    yaw: yaw, pitch: pitch,
+    beacon: beaconPickedUp,
+    tricorder: tricorderPickedUp,
+    puzzle: puzzleSolved,
+    rings: [ringAngles[0], ringAngles[1], ringAngles[2]],
+    chips: chipsPickedUp.slice(),
+    time: timeOfDay,
+    pins: pins,
+    wpName: wpName
+  };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+function applyLoadedState() {
+  var raw;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch(e) { return; }
+  if (!raw) return;
+  var d;
+  try { d = JSON.parse(raw); } catch(e) { return; }
+
+  // Position + rotation
+  camera.position.set(d.px, d.py, d.pz);
+  yaw = d.yaw || 0;
+  pitch = d.pitch || 0;
+
+  // Beacon
+  if (d.beacon) {
+    beaconPickedUp = true;
+    scene.remove(beaconGroup);
+    scene.remove(beaconBeamGroup);
+    addToInventory(locatorItem);
+  }
+
+  // Chips
+  if (d.chips) {
+    for (var _li = 0; _li < d.chips.length && _li < chipMeshes.length; _li++) {
+      if (d.chips[_li]) {
+        chipsPickedUp[_li] = true;
+        scene.remove(chipMeshes[_li].mesh);
+        scene.remove(chipMeshes[_li].glow);
+        var _cd2 = chipDefs[_li];
+        waypoints.push({ name: _cd2.name, x: _cd2.targetX, z: _cd2.targetZ, color: _cd2.color, type: 'chip' });
+      }
+    }
+  }
+
+  // Ring puzzle state
+  if (d.rings) {
+    ringAngles[0] = d.rings[0] || 0;
+    ringAngles[1] = d.rings[1] || 0;
+    ringAngles[2] = d.rings[2] || 0;
+    updateRingNotches();
+  }
+
+  // Puzzle solved
+  if (d.puzzle) {
+    puzzleSolved = true;
+    document.getElementById('puzzle-ui').style.display = 'none';
+    for (var _ri = 0; _ri < 3; _ri++) {
+      ringNotches[_ri].mat.color.set(0x44ff88);
+      ringNotches[_ri].mat.opacity = 1.0;
+    }
+    if (d.tricorder) {
+      // Already picked up — just restore item, no mesh needed
+      tricorderSpawned = true;
+      tricorderPickedUp = true;
+      addToInventory(tricorderItem);
+    } else {
+      // Solved but not yet grabbed — spawn it floating
+      spawnTricorder();
+    }
+  }
+
+  // Time of day
+  if (d.time !== undefined) timeOfDay = d.time;
+
+  // Custom pins
+  if (d.pins) {
+    for (var _pi = 0; _pi < d.pins.length; _pi++) {
+      waypoints.push(d.pins[_pi]);
+    }
+  }
+
+  // Restore active waypoint by name
+  if (d.wpName) {
+    for (var _wi = 0; _wi < waypoints.length; _wi++) {
+      if (waypoints[_wi].name === d.wpName) { activeWaypointIdx = _wi; break; }
+    }
+  }
+
+  updateHotbarUI();
+}
+
 // ── Start ──────────────────────────────────────────────────────
-document.getElementById('startBtn').addEventListener('click', () => {
-started = true;
-document.getElementById('overlay').style.display = 'none';
-document.getElementById('crosshair').style.display = 'block';
-menuBtn.style.display = 'flex';
-hotbar.style.display = 'flex';
-if (!MOBILE) { document.getElementById('ui').style.display='block'; canvas.requestPointerLock(); }
-else { jZone.style.display='block'; }
-lastCX = null; lastCZ = null;
-updateChunks();
+function _doStartGame() {
+  started = true;
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('crosshair').style.display = 'block';
+  menuBtn.style.display = 'flex';
+  hotbar.style.display = 'flex';
+  if (!MOBILE) { document.getElementById('ui').style.display='block'; canvas.requestPointerLock(); }
+  else { jZone.style.display='block'; }
+  lastCX = null; lastCZ = null;
+}
+
+document.getElementById('startBtn').addEventListener('click', function() {
+  _doStartGame();
+  updateChunks();
+});
+
+document.getElementById('continueBtn').addEventListener('click', function() {
+  _doStartGame();
+  applyLoadedState();
+  updateChunks();
+});
+
+if (hasSave()) {
+  document.getElementById('continueBtn').style.display = 'block';
+}
+
+// Auto-save every 30s and on tab hide
+setInterval(function() { saveGame(); }, 30000);
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) saveGame();
 });
 
 // ── Puzzle Ring Raycasting (tap 3D rings to rotate) ──────────

@@ -2214,7 +2214,7 @@ for (var ni=0; ni<nwD.length; ni++) {
   nw.position.set(ARTIFACT_X+nd[0], artifactTerrY+nd[3]/2, ARTIFACT_Z+nd[1]);
   nw.userData = {scanType:'structure', species:'Wall Fragment', desc:'Remnant of perimeter structure', traits:'Weathered | Age: indeterminate'};
   scene.add(nw);
-  wallColliders.push({minX:ARTIFACT_X+nd[0]-nd[2]/2, maxX:ARTIFACT_X+nd[0]+nd[2]/2, minZ:ARTIFACT_Z+nd[1]-0.25, maxZ:ARTIFACT_Z+nd[1]+0.25});
+  wallColliders.push({minX:ARTIFACT_X+nd[0]-nd[2]/2, maxX:ARTIFACT_X+nd[0]+nd[2]/2, minZ:ARTIFACT_Z+nd[1]-0.25, maxZ:ARTIFACT_Z+nd[1]+0.25, topY:artifactTerrY+nd[3]});
 }
 
 // Monolith + floating ring
@@ -2234,7 +2234,7 @@ for (var si2=0; si2<saD.length; si2++) {
   var sw2 = new THREE.Mesh(new THREE.BoxGeometry(sd2[2],sd2[3],sd2[4]), ruinStoneMat);
   sw2.position.set(ARTIFACT_X+sd2[0], artifactTerrY+sd2[3]/2, ARTIFACT_Z+sd2[1]);
   scene.add(sw2);
-  wallColliders.push({minX:ARTIFACT_X+sd2[0]-sd2[2]/2, maxX:ARTIFACT_X+sd2[0]+sd2[2]/2, minZ:ARTIFACT_Z+sd2[1]-sd2[4]/2, maxZ:ARTIFACT_Z+sd2[1]+sd2[4]/2});
+  wallColliders.push({minX:ARTIFACT_X+sd2[0]-sd2[2]/2, maxX:ARTIFACT_X+sd2[0]+sd2[2]/2, minZ:ARTIFACT_Z+sd2[1]-sd2[4]/2, maxZ:ARTIFACT_Z+sd2[1]+sd2[4]/2, topY:artifactTerrY+sd2[3]});
 }
 
 // West sunken area floor + border walls
@@ -2247,7 +2247,7 @@ for (var wi=0; wi<wbD.length; wi++) {
   var wm = new THREE.Mesh(new THREE.BoxGeometry(wd[2],wd[3],wd[4]), ruinStoneMat);
   wm.position.set(ARTIFACT_X+wd[0], artifactTerrY+0.25, ARTIFACT_Z+wd[1]);
   scene.add(wm);
-  wallColliders.push({minX:ARTIFACT_X+wd[0]-wd[2]/2, maxX:ARTIFACT_X+wd[0]+wd[2]/2, minZ:ARTIFACT_Z+wd[1]-wd[4]/2, maxZ:ARTIFACT_Z+wd[1]+wd[4]/2});
+  wallColliders.push({minX:ARTIFACT_X+wd[0]-wd[2]/2, maxX:ARTIFACT_X+wd[0]+wd[2]/2, minZ:ARTIFACT_Z+wd[1]-wd[4]/2, maxZ:ARTIFACT_Z+wd[1]+wd[4]/2, topY:artifactTerrY+0.25+wd[3]/2});
 }
 
 // East columns
@@ -2695,13 +2695,15 @@ function clearScanPreview() {
 
 // ── Wall Collision System ─────────────────────────────────────
 const PLAYER_RADIUS = 0.5;
-function checkWallCollision(newX, newZ) {
+function checkWallCollision(newX, newZ, playerY) {
   for (const c of wallColliders) {
+    // Skip if player's feet have cleared the wall top (with 0.5 unit grace)
+    if (c.topY !== undefined && playerY - 2.5 >= c.topY - 0.5) continue;
     const closestX = Math.max(c.minX, Math.min(newX, c.maxX));
     const closestZ = Math.max(c.minZ, Math.min(newZ, c.maxZ));
     const dx = newX - closestX, dz = newZ - closestZ;
     if (dx * dx + dz * dz < PLAYER_RADIUS * PLAYER_RADIUS) {
-      return true; // collision
+      return true;
     }
   }
   return false;
@@ -3478,8 +3480,8 @@ if (flyMode) {
   // Normal horizontal movement with wall collision
   const newX = camera.position.x + (forward.x * fwd + rightVec.x * right) * spd;
   const newZ = camera.position.z + (forward.z * fwd + rightVec.z * right) * spd;
-  if (!checkWallCollision(newX, camera.position.z)) camera.position.x = newX;
-  if (!checkWallCollision(camera.position.x, newZ)) camera.position.z = newZ;
+  if (!checkWallCollision(newX, camera.position.z, camera.position.y)) camera.position.x = newX;
+  if (!checkWallCollision(camera.position.x, newZ, camera.position.y)) camera.position.z = newZ;
   // Floor height (ruins adjustment)
   let ty = getHeight(camera.position.x, camera.position.z) + 2.5;
   const ruinDx = camera.position.x - ARTIFACT_X;

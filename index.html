@@ -2757,6 +2757,7 @@ function initDeviceInteraction() {
       var t1 = e.touches[0], t2 = e.touches[1];
       hdPinchDist0   = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
       hdPinchScale0  = hdScale;
+      hdPinchLeft0   = hdLeft; hdPinchTop0 = hdTop;
       hdPinchMidX    = (t1.clientX + t2.clientX) * 0.5;
       hdPinchMidY    = (t1.clientY + t2.clientY) * 0.5;
       hdRotStartRotX = hdRotX; hdRotStartRotY = hdRotY;
@@ -2775,10 +2776,12 @@ function initDeviceInteraction() {
       var dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
       var midX = (t1.clientX + t2.clientX) * 0.5;
       var midY = (t1.clientY + t2.clientY) * 0.5;
-      // scale (pinch)
+      // scale anchored to pinch midpoint (same math as scroll wheel)
       var newScale = Math.max(0.35, Math.min(2.5, hdPinchScale0 * dist / hdPinchDist0));
-      var c = hdClamp(hdLeft, hdTop, newScale);
-      hdScale = c.scale; hdApply();
+      var ratio = newScale / hdPinchScale0;
+      var c = hdClamp(hdPinchMidX + (hdPinchLeft0 - hdPinchMidX) * ratio,
+                      hdPinchMidY + (hdPinchTop0  - hdPinchMidY) * ratio, newScale);
+      hdLeft = c.left; hdTop = c.top; hdScale = c.scale; hdApply();
       // rotation (midpoint drag)
       hdRotY = hdRotStartRotY + (midX - hdPinchMidX) * 0.008;
       hdRotX = hdRotStartRotX + (midY - hdPinchMidY) * 0.008;

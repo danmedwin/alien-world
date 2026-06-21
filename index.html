@@ -1805,7 +1805,7 @@ document.addEventListener('keydown', e => {
       if (!flyMode && playerGrounded) {
         playerJumping = true;
         playerGrounded = false;
-        velY = 7.5;
+        velY = 10 * ((keys['ShiftLeft'] || keys['ShiftRight']) ? 1.4 : 1.0);
       }
       lastSpaceTime = spaceNow;
     }
@@ -3344,13 +3344,18 @@ if (flyMode) {
     ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
   }
   if (playerJumping) {
-    velY += -22 * dt;
+    velY += -9 * dt;
     camera.position.y += velY * dt;
     if (camera.position.y <= ty) {
       camera.position.y = ty;
-      velY = 0;
-      playerJumping = false;
-      playerGrounded = true;
+      var bounceV = Math.abs(velY) * 0.22;
+      if (bounceV > 0.8) {
+        velY = bounceV;
+      } else {
+        velY = 0;
+        playerJumping = false;
+        playerGrounded = true;
+      }
     }
   } else {
     playerGrounded = true;
@@ -3387,7 +3392,7 @@ jumpBtn.addEventListener('touchstart', function(e) {
     lastSpaceTime = 0;
   } else {
     if (!flyMode && playerGrounded) {
-      playerJumping = true; playerGrounded = false; velY = 7.5;
+      playerJumping = true; playerGrounded = false; velY = 10 * (jSprinting ? 1.4 : 1.0);
     }
     lastSpaceTime = spaceNow;
   }

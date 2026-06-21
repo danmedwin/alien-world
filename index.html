@@ -470,7 +470,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   display:none;
   position:absolute;
   width:395px;
-  height:500px;
+  height:700px;
   pointer-events:auto;
   touch-action:none;
   user-select:none;
@@ -2701,13 +2701,13 @@ function hideScanCard() {
 }
 
 function hdDefaultPos() {
-  return { left: window.innerWidth - 395, top: window.innerHeight - 265, scale: 1.0 };
+  return { left: window.innerWidth - 395, top: window.innerHeight - 400, scale: 1.0 };
 }
 function hdClamp(l, t, s) {
   var margin = 60;
   s = Math.max(0.35, Math.min(2.5, s));
   l = Math.max(-395 * s + margin, Math.min(window.innerWidth  - margin, l));
-  t = Math.max(-500 * s + margin, Math.min(window.innerHeight - margin, t));
+  t = Math.max(-700 * s + margin, Math.min(window.innerHeight - margin, t));
   return { left: l, top: t, scale: s };
 }
 function hdApply() {
@@ -2718,11 +2718,11 @@ function hdApply() {
   hw.style.transform = 'scale(' + hdScale + ')';
 }
 function hdSave() {
-  try { localStorage.setItem('kpx_dev', JSON.stringify({ l: hdLeft, t: hdTop, s: hdScale, rx: hdRotX, ry: hdRotY })); } catch(e) {}
+  try { localStorage.setItem('kpx_dev2', JSON.stringify({ l: hdLeft, t: hdTop, s: hdScale, rx: hdRotX, ry: hdRotY })); } catch(e) {}
 }
 function hdLoad() {
   try {
-    var raw = localStorage.getItem('kpx_dev');
+    var raw = localStorage.getItem('kpx_dev2');
     if (raw) { var d = JSON.parse(raw); hdLeft = d.l; hdTop = d.t; hdScale = d.s; hdRotX = d.rx || 0; hdRotY = d.ry || 0; return; }
   } catch(e) {}
   var def = hdDefaultPos();
@@ -2742,84 +2742,86 @@ function initDeviceInteraction() {
   var rb = document.getElementById('device-reset-btn');
   if (rb) rb.addEventListener('click', function(e) { e.stopPropagation(); hdReset(); });
 
-  // ── Touch: 1 finger = rotate model │ 2 fingers = move wrap + pinch scale ──
+  // ── Touch: 1 finger = move wrap │ 2 fingers = rotate model + pinch scale ──
   hw.addEventListener('touchstart', function(e) {
     e.stopPropagation();
     if (e.touches.length === 1) {
-      hdRotating = true; hdPinching = false; hdDragging = false;
-      hdRotStartX = e.touches[0].clientX; hdRotStartY = e.touches[0].clientY;
-      hdRotStartRotX = hdRotX; hdRotStartRotY = hdRotY;
+      hdDragging = true; hdPinching = false; hdRotating = false;
+      hdDragStartX = e.touches[0].clientX; hdDragStartY = e.touches[0].clientY;
+      hdDragStartLeft = hdLeft; hdDragStartTop = hdTop;
       var now2 = Date.now();
       if (now2 - hdLastTap < 300) { hdReset(); }
       hdLastTap = now2;
     } else if (e.touches.length >= 2) {
-      hdRotating = false; hdPinching = true; hdDragging = false;
+      hdDragging = false; hdPinching = true; hdRotating = false;
       var t1 = e.touches[0], t2 = e.touches[1];
-      hdPinchDist0  = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      hdPinchScale0 = hdScale;
-      hdPinchLeft0  = hdLeft; hdPinchTop0 = hdTop;
-      hdPinchMidX   = (t1.clientX + t2.clientX) * 0.5;
-      hdPinchMidY   = (t1.clientY + t2.clientY) * 0.5;
+      hdPinchDist0   = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      hdPinchScale0  = hdScale;
+      hdPinchMidX    = (t1.clientX + t2.clientX) * 0.5;
+      hdPinchMidY    = (t1.clientY + t2.clientY) * 0.5;
+      hdRotStartRotX = hdRotX; hdRotStartRotY = hdRotY;
     }
   }, { passive: false });
 
   hw.addEventListener('touchmove', function(e) {
     e.stopPropagation(); e.preventDefault();
-    if (hdRotating && e.touches.length === 1) {
-      hdRotY = hdRotStartRotY + (e.touches[0].clientX - hdRotStartX) * 0.008;
-      hdRotX = hdRotStartRotX + (e.touches[0].clientY - hdRotStartY) * 0.008;
+    if (hdDragging && e.touches.length === 1) {
+      var dx = e.touches[0].clientX - hdDragStartX;
+      var dy = e.touches[0].clientY - hdDragStartY;
+      var c = hdClamp(hdDragStartLeft + dx, hdDragStartTop + dy, hdScale);
+      hdLeft = c.left; hdTop = c.top; hdApply();
     } else if (hdPinching && e.touches.length >= 2) {
       var t1 = e.touches[0], t2 = e.touches[1];
       var dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
       var midX = (t1.clientX + t2.clientX) * 0.5;
       var midY = (t1.clientY + t2.clientY) * 0.5;
-      var newScale  = Math.max(0.35, Math.min(2.5, hdPinchScale0 * dist / hdPinchDist0));
-      var scaleRatio = newScale / hdPinchScale0;
-      // pan = midpoint movement; scale around initial midpoint
-      var c = hdClamp(hdPinchMidX + (hdPinchLeft0 - hdPinchMidX) * scaleRatio + (midX - hdPinchMidX),
-                      hdPinchMidY + (hdPinchTop0  - hdPinchMidY) * scaleRatio + (midY - hdPinchMidY),
-                      newScale);
-      hdLeft = c.left; hdTop = c.top; hdScale = c.scale; hdApply();
+      // scale (pinch)
+      var newScale = Math.max(0.35, Math.min(2.5, hdPinchScale0 * dist / hdPinchDist0));
+      var c = hdClamp(hdLeft, hdTop, newScale);
+      hdScale = c.scale; hdApply();
+      // rotation (midpoint drag)
+      hdRotY = hdRotStartRotY + (midX - hdPinchMidX) * 0.008;
+      hdRotX = hdRotStartRotX + (midY - hdPinchMidY) * 0.008;
     }
   }, { passive: false });
 
   hw.addEventListener('touchend', function(e) {
     e.stopPropagation();
-    if (e.touches.length === 0) { hdRotating = false; hdPinching = false; hdSave(); }
+    if (e.touches.length === 0) { hdDragging = false; hdPinching = false; hdSave(); }
     else if (e.touches.length === 1 && hdPinching) {
-      // lifted one finger: switch back to rotate
-      hdPinching = false; hdRotating = true;
-      hdRotStartX = e.touches[0].clientX; hdRotStartY = e.touches[0].clientY;
-      hdRotStartRotX = hdRotX; hdRotStartRotY = hdRotY;
+      // lifted one finger: fall back to move
+      hdPinching = false; hdDragging = true;
+      hdDragStartX = e.touches[0].clientX; hdDragStartY = e.touches[0].clientY;
+      hdDragStartLeft = hdLeft; hdDragStartTop = hdTop;
     }
   }, { passive: false });
 
-  // ── Mouse: left drag = rotate model │ right drag = move wrap │ scroll = scale ──
+  // ── Mouse: left drag = move wrap │ right drag = rotate model │ scroll = scale ──
   hw.addEventListener('mousedown', function(e) {
     e.stopPropagation();
     if (e.button === 0) {
-      hdRotating = true;
-      hdRotStartX = e.clientX; hdRotStartY = e.clientY;
-      hdRotStartRotX = hdRotX; hdRotStartRotY = hdRotY;
-    } else if (e.button === 2) {
       hdDragging = true;
       hdDragStartX = e.clientX; hdDragStartY = e.clientY;
       hdDragStartLeft = hdLeft; hdDragStartTop = hdTop;
+    } else if (e.button === 2) {
+      hdRotating = true;
+      hdRotStartX = e.clientX; hdRotStartY = e.clientY;
+      hdRotStartRotX = hdRotX; hdRotStartRotY = hdRotY;
     }
   });
   document.addEventListener('mousemove', function(e) {
-    if (hdRotating) {
-      hdRotY = hdRotStartRotY + (e.clientX - hdRotStartX) * 0.008;
-      hdRotX = hdRotStartRotX + (e.clientY - hdRotStartY) * 0.008;
-    } else if (hdDragging) {
+    if (hdDragging) {
       var c = hdClamp(hdDragStartLeft + e.clientX - hdDragStartX,
                       hdDragStartTop  + e.clientY - hdDragStartY, hdScale);
       hdLeft = c.left; hdTop = c.top; hdApply();
+    } else if (hdRotating) {
+      hdRotY = hdRotStartRotY + (e.clientX - hdRotStartX) * 0.008;
+      hdRotX = hdRotStartRotX + (e.clientY - hdRotStartY) * 0.008;
     }
   });
   document.addEventListener('mouseup', function() {
-    if (hdRotating) { hdRotating = false; hdSave(); }
     if (hdDragging) { hdDragging = false; hdSave(); }
+    if (hdRotating) { hdRotating = false; hdSave(); }
   });
   hw.addEventListener('contextmenu', function(e) { e.preventDefault(); });
   hw.addEventListener('wheel', function(e) {
@@ -2836,14 +2838,14 @@ function initDeviceInteraction() {
 function initHeldDevice() {
   var canvas = document.getElementById('held-device-canvas');
   if (!canvas || heldDeviceRenderer) return;
-  var W = 395, H = 500;
+  var W = 395, H = 700;
   heldDeviceRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
   heldDeviceRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   heldDeviceRenderer.setSize(W, H, false);
   heldDeviceRenderer.setClearColor(0x000000, 0);
   heldDeviceScene = new THREE.Scene();
   heldDeviceCamera = new THREE.PerspectiveCamera(87, W / H, 0.01, 20);
-  heldDeviceCamera.position.set(0.03, 0.24, 0.36);
+  heldDeviceCamera.position.set(0.03, 0.24, 0.50);
   heldDeviceCamera.lookAt(0, 0.16, 0);
   var hdAmb = new THREE.AmbientLight(0x503020, 0.65);
   heldDeviceScene.add(hdAmb);

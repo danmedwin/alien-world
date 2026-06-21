@@ -660,7 +660,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.5</div>
+<div id="version-tag">v7.6</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -1825,18 +1825,20 @@ document.addEventListener('keydown', e => {
 });
 
 // Touch: tap slots to select, tap active slot again to use
+// Scanner auto-activates when its slot is selected
 hotbarSlots.forEach((slot, i) => {
-  slot.addEventListener('click', e => {
-    e.stopPropagation();
-    if (activeSlot === i && inventory[i]) useActiveItem();
-    else selectSlot(i);
-  });
-  slot.addEventListener('touchend', e => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (activeSlot === i && inventory[i]) useActiveItem();
-    else selectSlot(i);
-  }, { passive: false });
+  function handleSlotTap() {
+    var item = inventory[i];
+    if (!item) return;
+    if (activeSlot === i) {
+      useActiveItem();
+    } else {
+      selectSlot(i);
+      if (item === tricorderItem && !item.active) item.onUse();
+    }
+  }
+  slot.addEventListener('click', e => { e.stopPropagation(); handleSlotTap(); });
+  slot.addEventListener('touchend', e => { e.stopPropagation(); e.preventDefault(); handleSlotTap(); }, { passive: false });
 });
 
 updateHotbarUI();
@@ -4382,6 +4384,13 @@ if (!beaconPickedUp) {
     scene.remove(beaconGroup);
     scene.remove(beaconBeamGroup);
     addToInventory(locatorItem);
+    var _lSlot = inventory.indexOf(locatorItem);
+    if (_lSlot >= 0) {
+      selectSlot(_lSlot);
+      locatorItem.onUse();
+      var _lN = _lSlot + 1;
+      setTimeout(function() { showPickupNotification(MOBILE ? 'Tap slot ' + _lN + ' to deactivate' : 'Press ' + _lN + ' to deactivate'); }, 1500);
+    }
   }
 }
 
@@ -4452,6 +4461,13 @@ if (tricorderSpawned && !tricorderPickedUp && tricorderMesh) {
     addToInventory(tricorderItem);
     tricorderGlowLight = null;
     tricorderParticleCloud = null;
+    var _tSlot = inventory.indexOf(tricorderItem);
+    if (_tSlot >= 0) {
+      selectSlot(_tSlot);
+      tricorderItem.onUse();
+      var _tN = _tSlot + 1;
+      setTimeout(function() { showPickupNotification(MOBILE ? 'Tap slot ' + _tN + ' to deactivate' : 'Press ' + _tN + ' to deactivate'); }, 1500);
+    }
   }
 }
 

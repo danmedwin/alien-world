@@ -685,7 +685,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.14</div>
+<div id="version-tag">v7.15</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2519,8 +2519,9 @@ var tricorderItem = {
     if (this.active) {
       this.active = false;
       scannerActive = false;
-      if (scannerOverlay) scannerOverlay.style.display = 'none';
-      hideScanCard();
+      heldDeviceScanData = null;
+      var hwOff = document.getElementById('held-device-wrap');
+      if (hwOff) hwOff.style.display = 'none';
       clearScanHighlight();
       scanLockTarget = null;
       lastScannedObj = null;
@@ -2528,14 +2529,18 @@ var tricorderItem = {
     } else {
       this.active = true;
       scannerActive = true;
+      if (!heldDeviceRenderer) initHeldDevice();
+      var hwOn = document.getElementById('held-device-wrap');
+      if (hwOn) hwOn.style.display = 'block';
       showPickupNotification('Scanner active');
     }
   },
   onDeactivate: function() {
     this.active = false;
     scannerActive = false;
-    if (scannerOverlay) scannerOverlay.style.display = 'none';
-    hideScanCard();
+    heldDeviceScanData = null;
+    var hwDe = document.getElementById('held-device-wrap');
+    if (hwDe) hwDe.style.display = 'none';
     clearScanHighlight();
     scanLockTarget = null;
     lastScannedObj = null;
@@ -2665,15 +2670,10 @@ function showScanCard(data) {
   else if (data.scanType === 'celestial') typeLabel = '◆ CELESTIAL';
   else if (data.scanType === 'structure') typeLabel = '◆ STRUCTURE';
   heldDeviceScanData = { label: typeLabel, species: data.species, desc: data.desc, traits: data.traits };
-  if (!heldDeviceRenderer) initHeldDevice();
-  var hw = document.getElementById('held-device-wrap');
-  if (hw) hw.style.display = 'block';
 }
 
 function hideScanCard() {
   heldDeviceScanData = null;
-  var hw = document.getElementById('held-device-wrap');
-  if (hw) hw.style.display = 'none';
 }
 
 function initHeldDevice() {
@@ -2795,89 +2795,114 @@ function drawHeldDeviceScreen(now) {
     ctx.strokeRect(bw * 0.5, bw * 0.5, w - bw, h - bw);
   }
 
-  var divY = Math.round(h * scSP);
-  var topY = bw + pad;
-  var data = heldDeviceScanData || {};
+  var divY   = Math.round(h * scSP);
+  var loY    = divY + Math.round(8 * R);
+  var loFS   = Math.round(fs * 0.64);
+  var lbFS   = Math.round(fs * 0.52);
+  var innerW = w - (bw + pad) * 2;
+  var col    = Math.round(innerW / 3);
+  var x0 = bw + pad, x1 = x0 + col, x2 = x0 + col * 2;
+  var data = heldDeviceScanData;
 
-  // Type label
-  ctx.fillStyle = 'rgba(255,170,50,0.48)';
-  ctx.font = Math.round(fs * 0.58) + 'px monospace';
-  ctx.textBaseline = 'top';
-  ctx.fillText(data.label || '◆ SCANNING', bw + pad, topY);
+  if (data) {
+    // ── HAS TARGET: creature info upper, DIST/SIGNAL/RISK lower ─────────
+    var topY = bw + pad;
+    ctx.fillStyle = 'rgba(255,170,50,0.48)';
+    ctx.font = Math.round(fs * 0.58) + 'px monospace';
+    ctx.textBaseline = 'top';
+    ctx.fillText(data.label, bw + pad, topY);
 
-  // Thumbnail
-  var availH = divY - topY - Math.round(fs * 0.65) - 8 - pad;
-  var thumbH = Math.min(Math.round(h * scTh), availH);
-  var thumbW = thumbH;
-  var thumbX = bw + pad;
-  var thumbY = topY + Math.round(fs * 0.65) + 8;
-  ctx.fillStyle = 'rgba(8,3,18,0.9)';
-  ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
-  ctx.strokeStyle = 'rgba(255,170,50,0.22)';
-  ctx.lineWidth = Math.max(1, Math.round(R));
-  ctx.strokeRect(thumbX + 0.5, thumbY + 0.5, thumbW - 1, thumbH - 1);
-  if (previewRenderer) {
-    try { ctx.drawImage(previewRenderer.domElement, thumbX, thumbY, thumbW, thumbH); } catch(e) {}
+    var availH = divY - topY - Math.round(fs * 0.65) - 8 - pad;
+    var thumbSz = Math.min(Math.round(h * scTh), availH);
+    var thumbX  = bw + pad;
+    var thumbY  = topY + Math.round(fs * 0.65) + 8;
+    ctx.fillStyle = 'rgba(8,3,18,0.9)';
+    ctx.fillRect(thumbX, thumbY, thumbSz, thumbSz);
+    ctx.strokeStyle = 'rgba(255,170,50,0.22)';
+    ctx.lineWidth = Math.max(1, Math.round(R));
+    ctx.strokeRect(thumbX + 0.5, thumbY + 0.5, thumbSz - 1, thumbSz - 1);
+    if (previewRenderer) {
+      try { ctx.drawImage(previewRenderer.domElement, thumbX, thumbY, thumbSz, thumbSz); } catch(e) {}
+    }
+
+    var textX    = thumbX + thumbSz + Math.round(10 * scFS * R);
+    var textMaxW = w - textX - bw - pad;
+    var textY    = thumbY;
+    ctx.fillStyle = 'rgba(255,200,100,0.95)';
+    ctx.font = 'bold ' + fs + 'px monospace';
+    textY = hdFillWrapped(ctx, data.species, textX, textY, textMaxW, fs + 3);
+    textY += 4;
+    ctx.strokeStyle = 'rgba(255,170,50,0.20)';
+    ctx.lineWidth = Math.max(1, Math.round(R * 0.5));
+    ctx.beginPath(); ctx.moveTo(textX, textY); ctx.lineTo(textX + textMaxW, textY); ctx.stroke();
+    textY += 7;
+    var smFS = Math.round(fs * 0.70);
+    ctx.fillStyle = 'rgba(255,170,50,0.70)';
+    ctx.font = smFS + 'px monospace';
+    textY = hdFillWrapped(ctx, data.desc, textX, textY, textMaxW, smFS + 4);
+    textY += 5;
+    var tnFS = Math.round(fs * 0.58);
+    ctx.fillStyle = 'rgba(255,170,50,0.48)';
+    ctx.font = tnFS + 'px monospace';
+    ctx.fillText(data.traits, textX, textY);
+
+    // Lower: DIST / SIGNAL / RISK
+    ctx.fillStyle = 'rgba(255,170,50,0.38)';
+    ctx.font = lbFS + 'px monospace';
+    ctx.textBaseline = 'top';
+    ctx.fillText('DIST', x0, loY);
+    ctx.fillText('SIGNAL', x1, loY);
+    ctx.fillText('RISK', x2, loY);
+    var valY = loY + lbFS + Math.round(4 * R);
+    ctx.fillStyle = 'rgba(255,200,100,0.90)';
+    ctx.font = 'bold ' + loFS + 'px monospace';
+    ctx.fillText('??m', x0, valY);
+    var sbH = Math.round(loFS * 0.62);
+    var sbW = Math.round(col * 0.75);
+    ctx.fillStyle = 'rgba(255,170,50,0.14)';
+    ctx.fillRect(x1, valY, sbW, sbH);
+    ctx.fillStyle = 'rgba(255,170,50,0.78)';
+    ctx.fillRect(x1, valY, Math.round(sbW * 0.73), sbH);
+    ctx.fillStyle = 'rgba(255,200,100,0.88)';
+    ctx.font = lbFS + 'px monospace';
+    ctx.fillText('73%', x1 + sbW + Math.round(4 * R), valY);
+    ctx.fillStyle = 'rgba(70,220,70,0.88)';
+    ctx.font = 'bold ' + loFS + 'px monospace';
+    ctx.fillText('LOW', x2, valY);
+
+  } else {
+    // ── NO TARGET: blank upper, ambient readings lower ───────────────────
+    var biomeV     = getBiomeVal(camera.position.x, camera.position.z);
+    var biomeName  = biomeV > 0.55 ? 'CRYSTAL DESERT' : biomeV > 0.45 ? 'TRANSITION' : 'PURPLE HIGHLANDS';
+    var stormIv    = getStormIntensity(camera.position.x, camera.position.z);
+    var weatherStr = 'CLEAR';
+    if (stormIv > 0.5) weatherStr = 'HEAVY STORM';
+    else if (stormIv > 0.2) weatherStr = 'STORM';
+    else if (stormIv > 0.05) weatherStr = 'LIGHT RAIN';
+    var bioLum = Math.round((1 - currentDayF) * 100);
+
+    ctx.fillStyle = 'rgba(255,170,50,0.38)';
+    ctx.font = lbFS + 'px monospace';
+    ctx.textBaseline = 'top';
+    ctx.fillText('BIOME', x0, loY);
+    ctx.fillText('WEATHER', x1, loY);
+    ctx.fillText('BIO-LUM', x2, loY);
+    var valY2 = loY + lbFS + Math.round(4 * R);
+    ctx.fillStyle = 'rgba(255,200,100,0.90)';
+    ctx.font = loFS + 'px monospace';
+    hdFillWrapped(ctx, biomeName, x0, valY2, col - Math.round(8 * R), loFS + 2);
+    ctx.fillText(weatherStr, x1, valY2);
+    ctx.fillStyle = bioLum > 50 ? 'rgba(120,240,160,0.90)' : 'rgba(255,200,100,0.90)';
+    ctx.font = 'bold ' + loFS + 'px monospace';
+    ctx.fillText(bioLum + '%', x2, valY2);
   }
 
-  // Text column
-  var textX    = thumbX + thumbW + Math.round(10 * scFS * R);
-  var textMaxW = w - textX - bw - pad;
-  var textY    = thumbY;
-  ctx.fillStyle = 'rgba(255,200,100,0.95)';
-  ctx.font = 'bold ' + fs + 'px monospace';
-  textY = hdFillWrapped(ctx, data.species || '—', textX, textY, textMaxW, fs + 3);
-  textY += 4;
-  ctx.strokeStyle = 'rgba(255,170,50,0.20)';
-  ctx.lineWidth = Math.max(1, Math.round(R * 0.5));
-  ctx.beginPath(); ctx.moveTo(textX, textY); ctx.lineTo(textX + textMaxW, textY); ctx.stroke();
-  textY += 7;
-  var smFS = Math.round(fs * 0.70);
-  ctx.fillStyle = 'rgba(255,170,50,0.70)';
-  ctx.font = smFS + 'px monospace';
-  textY = hdFillWrapped(ctx, data.desc || '', textX, textY, textMaxW, smFS + 4);
-  textY += 5;
-  var tnFS = Math.round(fs * 0.58);
-  ctx.fillStyle = 'rgba(255,170,50,0.48)';
-  ctx.font = tnFS + 'px monospace';
-  ctx.fillText(data.traits || '', textX, textY);
-
-  // Section divider
+  // Section divider (always)
   ctx.strokeStyle = 'rgba(255,170,50,0.18)';
   ctx.lineWidth = Math.max(1, Math.round(R));
   ctx.beginPath(); ctx.moveTo(bw + pad, divY); ctx.lineTo(w - bw - pad, divY); ctx.stroke();
 
-  // Lower section — DIST / SIGNAL / RISK
-  var loY  = divY + Math.round(8 * R);
-  var loFS = Math.round(fs * 0.64);
-  var lbFS = Math.round(fs * 0.52);
-  var innerW = w - (bw + pad) * 2;
-  var col  = Math.round(innerW / 3);
-  var x0 = bw + pad, x1 = x0 + col, x2 = x0 + col * 2;
-  ctx.fillStyle = 'rgba(255,170,50,0.38)';
-  ctx.font = lbFS + 'px monospace';
-  ctx.textBaseline = 'top';
-  ctx.fillText('DIST', x0, loY);
-  ctx.fillText('SIGNAL', x1, loY);
-  ctx.fillText('RISK', x2, loY);
-  var valY = loY + lbFS + Math.round(4 * R);
-  ctx.fillStyle = 'rgba(255,200,100,0.90)';
-  ctx.font = 'bold ' + loFS + 'px monospace';
-  ctx.fillText('??m', x0, valY);
-  var sbH = Math.round(loFS * 0.62);
-  var sbW = Math.round(col * 0.75);
-  ctx.fillStyle = 'rgba(255,170,50,0.14)';
-  ctx.fillRect(x1, valY, sbW, sbH);
-  ctx.fillStyle = 'rgba(255,170,50,0.78)';
-  ctx.fillRect(x1, valY, Math.round(sbW * 0.73), sbH);
-  ctx.fillStyle = 'rgba(255,200,100,0.88)';
-  ctx.font = lbFS + 'px monospace';
-  ctx.fillText('73%', x1 + sbW + Math.round(4 * R), valY);
-  ctx.fillStyle = 'rgba(70,220,70,0.88)';
-  ctx.font = 'bold ' + loFS + 'px monospace';
-  ctx.fillText('LOW', x2, valY);
-
-  // Full-width animated scan bar
+  // Full-width animated scan bar (always)
   var barH  = Math.round(5 * R);
   var barY  = h - bw - Math.round(pad * 0.6) - barH;
   var barX  = bw + pad;
@@ -4789,24 +4814,7 @@ if (tricorderSpawned && !tricorderPickedUp && tricorderMesh) {
   }
 }
 
-// Scanner readout
-if (scannerActive && scannerOverlay) {
-  scannerOverlay.style.display = 'block';
-  var terrH = getHeight(camera.position.x, camera.position.z);
-  var biome = getBiomeVal(camera.position.x, camera.position.z);
-  var biomeName = biome > 0.55 ? 'CRYSTAL DESERT' : biome > 0.45 ? 'TRANSITION' : 'PURPLE HIGHLANDS';
-  var stormI2 = getStormIntensity(camera.position.x, camera.position.z);
-  var weatherStr = 'CLEAR';
-  if (stormI2 > 0.5) weatherStr = 'HEAVY STORM';
-  else if (stormI2 > 0.2) weatherStr = 'STORM';
-  else if (stormI2 > 0.05) weatherStr = 'LIGHT RAIN';
-  var scanText = 'BIOME: ' + biomeName + '\n';
-  scanText += 'ELEV: ' + Math.round(terrH * 10) / 10 + '\n';
-  scanText += 'WATER: ' + (terrH < WATER_LEVEL ? 'SUBMERGED' : 'ABOVE') + '\n';
-  scanText += 'WEATHER: ' + weatherStr + '\n';
-  scanText += 'BIO-LUM: ' + Math.round((1 - currentDayF) * 100) + '%';
-  scannerReadout.textContent = scanText;
-}
+// Scanner overlay removed — biome/weather/bio-lum now shown on held device screen
 
 // Scanner raycast for scan card (cone search + lock-on + wireframe highlight)
 if (scannerActive && started) {

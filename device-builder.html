@@ -7,40 +7,26 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #08040f; color: #bbb; font-family: 'Courier New', monospace; font-size: 12px; display: flex; height: 100vh; overflow: hidden; }
 
-/* ── Left controls panel ── */
+/* ── Controls ── */
 #ctrl { width: 280px; flex-shrink: 0; overflow-y: auto; background: #0c0918; border-right: 1px solid #221533; padding: 10px 12px; }
 #ctrl-title { font-size: 11px; color: #ccaaff; letter-spacing: 0.08em; margin-bottom: 12px; }
-
 .group { margin-bottom: 14px; }
 .group-title { font-size: 8px; text-transform: uppercase; letter-spacing: 0.14em; color: #7755aa; border-bottom: 1px solid #221533; padding-bottom: 3px; margin-bottom: 7px; }
 .row { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
-.row label { width: 96px; flex-shrink: 0; color: #998; font-size: 10px; }
+.row label { width: 100px; flex-shrink: 0; color: #998; font-size: 10px; }
 .row input[type=range] { flex: 1; accent-color: #9966ff; cursor: pointer; min-width: 0; }
-
-/* Editable number inputs replacing static val spans */
-.val {
-  width: 52px; flex-shrink: 0; text-align: right;
-  color: #ffaa44; font-size: 10px; font-family: 'Courier New', monospace;
-  background: transparent; border: none;
-  border-bottom: 1px solid transparent;
-  padding: 0 2px; cursor: text;
-  -moz-appearance: textfield;
-}
-.val::-webkit-outer-spin-button,
-.val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.val { width: 52px; flex-shrink: 0; text-align: right; color: #ffaa44; font-size: 10px; font-family: 'Courier New', monospace; background: transparent; border: none; border-bottom: 1px solid transparent; padding: 0 2px; cursor: text; -moz-appearance: textfield; }
+.val::-webkit-outer-spin-button, .val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .val:focus { border-bottom: 1px solid rgba(255,170,50,0.55); outline: none; color: #ffd080; }
 .row input[type=checkbox] { width: 14px; height: 14px; accent-color: #9966ff; cursor: pointer; }
-
 .btn-row { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 button { background: #160a28; border: 1px solid #5533aa; color: #ccaaff; padding: 4px 10px; cursor: pointer; font-size: 10px; border-radius: 3px; font-family: monospace; }
 button:hover { background: #221540; }
-
 #output-box { background: #050308; border: 1px solid #221533; border-radius: 3px; padding: 8px; font-size: 9px; color: #77cc77; white-space: pre; overflow: auto; max-height: 200px; margin-top: 8px; line-height: 1.55; user-select: all; }
 
-/* ── Right preview area ── */
+/* ── Preview ── */
 #preview-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; background: #080410; overflow: hidden; }
 #preview-label { font-size: 8px; color: #443355; letter-spacing: 0.14em; text-transform: uppercase; }
-
 #vp { position: relative; overflow: hidden; flex-shrink: 0; background: radial-gradient(ellipse at 45% 75%, #190836 0%, #05020e 100%); border: 1px solid #221533; box-shadow: 0 0 40px rgba(60,10,120,0.35); }
 #vp::after { content: 'viewport edge'; position: absolute; bottom: 0; left: 0; right: 0; height: 16px; background: repeating-linear-gradient(90deg, rgba(255,60,60,0.35) 0, rgba(255,60,60,0.35) 6px, transparent 6px, transparent 12px); border-top: 1px dashed rgba(255,60,60,0.4); font-size: 7px; color: rgba(255,60,60,0.5); text-align: right; padding-right: 6px; padding-top: 3px; letter-spacing: 0.08em; pointer-events: none; }
 #vp-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 40% 65%, rgba(50,10,90,0.35) 0%, transparent 55%); pointer-events: none; }
@@ -48,28 +34,12 @@ button:hover { background: #221540; }
 #xhair::before, #xhair::after { content:''; position:absolute; background:rgba(255,255,255,0.12); }
 #xhair::before { left:50%; top:-4px; width:1px; height:18px; transform:translateX(-50%); }
 #xhair::after  { top:50%; left:-4px; height:1px; width:18px; transform:translateY(-50%); }
-
-/* ── Held device canvas ── */
 #hd-wrap { position: absolute; }
 #hd-canvas { position: absolute; top:0; left:0; width:100%; height:100%; border-left:1px solid rgba(255,170,50,0.12); border-right:1px solid rgba(255,170,50,0.12); border-bottom:1px solid rgba(255,170,50,0.10); border-radius:0 0 10px 10px; }
-
-/* ── Scan card ── */
-#scan-card-p { position: absolute; display: flex; pointer-events: none; border-radius: 6px; padding: 7px 10px 7px 7px; gap: 8px; overflow: hidden; }
-.scp-wrap { flex-shrink: 0; border: 1px solid rgba(255,170,50,0.22); border-radius: 3px; background: rgba(8,3,18,0.95); overflow: hidden; }
-#scp-canvas { display: block; }
-.scp-text { flex: 1; min-width: 0; }
-.scp-type { font-size: 6px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,170,50,0.5); margin-bottom: 2px; }
-.scp-species { font-size: 11px; color: rgba(255,200,100,0.95); font-weight: bold; margin-bottom: 3px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scp-desc { font-size: 8px; color: rgba(255,170,50,0.7); margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
-.scp-traits { font-size: 7px; color: rgba(255,170,50,0.5); text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
-.scp-bar { margin-top: 4px; height: 2px; background: rgba(255,170,50,0.25); border-radius: 1px; overflow: hidden; }
-.scp-bar-fill { height: 100%; width: 40%; background: rgba(255,170,50,0.8); animation: scanPulse 1.5s ease-in-out infinite; }
-@keyframes scanPulse { 0%,100%{width:20%;margin-left:0} 50%{width:60%;margin-left:40%} }
 </style>
 </head>
 <body>
 
-<!-- ── Controls ── -->
 <div id="ctrl">
   <div id="ctrl-title">⬡ DEVICE BUILDER</div>
 
@@ -80,7 +50,7 @@ button:hover { background: #221540; }
   </div>
 
   <div class="group">
-    <div class="group-title">Held Device Canvas</div>
+    <div class="group-title">Device Canvas</div>
     <div class="row"><label>Width</label><input type="range" id="cv-w" min="120" max="500" step="5" value="320"><input type="number" class="val" id="n-cv-w" min="120" max="500" step="5" value="320"></div>
     <div class="row"><label>Height</label><input type="range" id="cv-h" min="200" max="800" step="5" value="520"><input type="number" class="val" id="n-cv-h" min="200" max="800" step="5" value="520"></div>
     <div class="row"><label>Right offset</label><input type="range" id="cv-r" min="0" max="80" step="1" value="10"><input type="number" class="val" id="n-cv-r" min="0" max="80" step="1" value="10"></div>
@@ -88,16 +58,14 @@ button:hover { background: #221540; }
   </div>
 
   <div class="group">
-    <div class="group-title">Info Card</div>
-    <div class="row"><label>Width</label><input type="range" id="sc-w" min="100" max="420" step="5" value="240"><input type="number" class="val" id="n-sc-w" min="100" max="420" step="5" value="240"></div>
-    <div class="row"><label>Height</label><input type="range" id="sc-h" min="50" max="350" step="5" value="100"><input type="number" class="val" id="n-sc-h" min="50" max="350" step="5" value="100"></div>
-    <div class="row"><label>Thumb size</label><input type="range" id="sc-th" min="30" max="120" step="2" value="60"><input type="number" class="val" id="n-sc-th" min="30" max="120" step="2" value="60"></div>
-    <div class="row"><label>Right offset</label><input type="range" id="sc-r" min="5" max="160" step="1" value="45"><input type="number" class="val" id="n-sc-r" min="5" max="160" step="1" value="45"></div>
-    <div class="row"><label>Bottom</label><input type="range" id="sc-b" min="20" max="400" step="2" value="112"><input type="number" class="val" id="n-sc-b" min="20" max="400" step="2" value="112"></div>
-    <div class="row"><label>BG opacity</label><input type="range" id="sc-op" min="0" max="1" step="0.01" value="0.52"><input type="number" class="val" id="n-sc-op" min="0" max="1" step="0.01" value="0.52"></div>
-    <div class="row"><label>Border px</label><input type="range" id="sc-bw" min="0" max="5" step="0.5" value="2"><input type="number" class="val" id="n-sc-bw" min="0" max="5" step="0.5" value="2"></div>
+    <div class="group-title">Screen Content (Texture)</div>
+    <div class="row"><label>BG opacity</label><input type="range" id="sc-op" min="0" max="1" step="0.01" value="0.92"><input type="number" class="val" id="n-sc-op" min="0" max="1" step="0.01" value="0.92"></div>
+    <div class="row"><label>Border width</label><input type="range" id="sc-bw" min="0" max="16" step="1" value="5"><input type="number" class="val" id="n-sc-bw" min="0" max="16" step="1" value="5"></div>
     <div class="row"><label>Border opacity</label><input type="range" id="sc-bo" min="0" max="1" step="0.01" value="0.72"><input type="number" class="val" id="n-sc-bo" min="0" max="1" step="0.01" value="0.72"></div>
-    <div class="row"><label>Bob card</label><input type="checkbox" id="c-bob"></div>
+    <div class="row"><label>Font scale</label><input type="range" id="sc-fs" min="0.5" max="2.5" step="0.05" value="1.0"><input type="number" class="val" id="n-sc-fs" min="0.5" max="2.5" step="0.05" value="1.0"></div>
+    <div class="row"><label>Thumb fraction</label><input type="range" id="sc-th" min="0.1" max="0.7" step="0.02" value="0.40"><input type="number" class="val" id="n-sc-th" min="0.1" max="0.7" step="0.02" value="0.40"></div>
+    <div class="row"><label>Screen W</label><input type="range" id="scr-w" min="0.05" max="0.40" step="0.005" value="0.16"><input type="number" class="val" id="n-scr-w" min="0.05" max="0.40" step="0.005" value="0.16"></div>
+    <div class="row"><label>Screen H</label><input type="range" id="scr-h" min="0.04" max="0.30" step="0.005" value="0.12"><input type="number" class="val" id="n-scr-h" min="0.04" max="0.30" step="0.005" value="0.12"></div>
   </div>
 
   <div class="group">
@@ -107,6 +75,7 @@ button:hover { background: #221540; }
     <div class="row"><label>X rotation</label><input type="range" id="d-rx" min="-0.6" max="0.4" step="0.01" value="-0.12"><input type="number" class="val" id="n-d-rx" min="-0.6" max="0.4" step="0.01" value="-0.12"></div>
     <div class="row"><label>Z rotation</label><input type="range" id="d-rz" min="-0.4" max="0.4" step="0.01" value="0.05"><input type="number" class="val" id="n-d-rz" min="-0.4" max="0.4" step="0.01" value="0.05"></div>
     <div class="row"><label>Y position</label><input type="range" id="d-py" min="-1.0" max="0.5" step="0.01" value="-0.15"><input type="number" class="val" id="n-d-py" min="-1.0" max="0.5" step="0.01" value="-0.15"></div>
+    <div class="row"><label>Flip angle</label><input type="range" id="d-fa" min="0" max="1.2" step="0.01" value="0.5"><input type="number" class="val" id="n-d-fa" min="0" max="1.2" step="0.01" value="0.5"></div>
     <div class="row"><label>Bob device</label><input type="checkbox" id="d-bob" checked></div>
   </div>
 
@@ -129,23 +98,12 @@ button:hover { background: #221540; }
   </div>
 </div>
 
-<!-- ── Preview ── -->
 <div id="preview-area">
-  <div id="preview-label">PREVIEW — red dashes = viewport bottom edge</div>
+  <div id="preview-label">PREVIEW — card is rendered as texture on the 3D screen mesh</div>
   <div id="vp">
     <div id="vp-bg"></div>
     <div id="xhair"></div>
     <div id="hd-wrap"><canvas id="hd-canvas"></canvas></div>
-    <div id="scan-card-p">
-      <div class="scp-wrap"><canvas id="scp-canvas" width="60" height="60"></canvas></div>
-      <div class="scp-text">
-        <div class="scp-type">◆ FAUNA</div>
-        <div class="scp-species">Luminous Crawler</div>
-        <div class="scp-desc">Bioluminescent hexapod, cave-dwelling</div>
-        <div class="scp-traits">Nocturnal · Harmless · Rare</div>
-        <div class="scp-bar"><div class="scp-bar-fill"></div></div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -153,7 +111,7 @@ button:hover { background: #221540; }
 <script>
 'use strict';
 
-// ── Slider definitions ──────────────────────────────────────────────────────
+// ── Slider definitions ─────────────────────────────────────────────────────
 const SLIDER_DEFS = [
   { id:'vp-w',    key:'vpW',    min:320,  max:700,  step:10,   dec:0 },
   { id:'vp-h',    key:'vpH',    min:500,  max:900,  step:10,   dec:0 },
@@ -161,19 +119,19 @@ const SLIDER_DEFS = [
   { id:'cv-h',    key:'cvH',    min:200,  max:800,  step:5,    dec:0 },
   { id:'cv-r',    key:'cvR',    min:0,    max:80,   step:1,    dec:0 },
   { id:'cv-bf',   key:'cvBF',   min:0,    max:400,  step:5,    dec:0 },
-  { id:'sc-w',    key:'scW',    min:100,  max:420,  step:5,    dec:0 },
-  { id:'sc-h',    key:'scH',    min:50,   max:350,  step:5,    dec:0 },
-  { id:'sc-th',   key:'scThumb',min:30,   max:120,  step:2,    dec:0 },
-  { id:'sc-r',    key:'scR',    min:5,    max:160,  step:1,    dec:0 },
-  { id:'sc-b',    key:'scB',    min:20,   max:400,  step:2,    dec:0 },
   { id:'sc-op',   key:'scOp',   min:0,    max:1,    step:0.01, dec:2 },
-  { id:'sc-bw',   key:'scBW',   min:0,    max:5,    step:0.5,  dec:1 },
+  { id:'sc-bw',   key:'scBW',   min:0,    max:16,   step:1,    dec:0 },
   { id:'sc-bo',   key:'scBO',   min:0,    max:1,    step:0.01, dec:2 },
+  { id:'sc-fs',   key:'scFS',   min:0.5,  max:2.5,  step:0.05, dec:2 },
+  { id:'sc-th',   key:'scTh',   min:0.10, max:0.70, step:0.02, dec:2 },
+  { id:'scr-w',   key:'scrW',   min:0.05, max:0.40, step:0.005,dec:3 },
+  { id:'scr-h',   key:'scrH',   min:0.04, max:0.30, step:0.005,dec:3 },
   { id:'d-sc',    key:'dSc',    min:0.3,  max:3.5,  step:0.05, dec:2 },
   { id:'d-ry',    key:'dRy',    min:-1.0, max:1.0,  step:0.01, dec:2 },
   { id:'d-rx',    key:'dRx',    min:-0.6, max:0.4,  step:0.01, dec:2 },
   { id:'d-rz',    key:'dRz',    min:-0.4, max:0.4,  step:0.01, dec:2 },
   { id:'d-py',    key:'dPy',    min:-1.0, max:0.5,  step:0.01, dec:2 },
+  { id:'d-fa',    key:'dFA',    min:0,    max:1.2,  step:0.01, dec:2 },
   { id:'cam-fov', key:'camFov', min:20,   max:100,  step:1,    dec:0 },
   { id:'cam-z',   key:'camZ',   min:0.10, max:1.5,  step:0.01, dec:2 },
   { id:'cam-ly',  key:'camLY',  min:-0.5, max:0.8,  step:0.01, dec:2 },
@@ -184,16 +142,28 @@ const SLIDER_DEFS = [
 const DEFAULTS = {
   vpW:460, vpH:700,
   cvW:320, cvH:520, cvR:10, cvBF:200,
-  scW:240, scH:100, scThumb:60, scR:45, scB:112,
-  scOp:0.52, scBW:2, scBO:0.72, cBob:false,
-  dSc:1.5, dRy:-0.22, dRx:-0.12, dRz:0.05, dPy:-0.15, dBob:true,
-  camFov:65, camZ:0.40, camLY:0.12, camX:0.06, camY:0.18
+  scOp:0.92, scBW:5, scBO:0.72, scFS:1.0, scTh:0.40,
+  scrW:0.16, scrH:0.12,
+  dSc:1.5, dRy:-0.22, dRx:-0.12, dRz:0.05, dPy:-0.15, dFA:0.5, dBob:true,
+  camFov:65, camZ:0.40, camLY:0.12, camX:0.06, camY:0.18,
 };
 
 const s = Object.assign({}, DEFAULTS);
 
-// ── Three.js — held device ──────────────────────────────────────────────────
-let renderer, scene, camera, deviceMesh;
+// ── Screen texture canvas (2D, off-DOM) ────────────────────────────────────
+const SCR_W = 512, SCR_H = 384; // 4:3, matches default geometry ratio
+const screenCanvas = document.createElement('canvas');
+screenCanvas.width = SCR_W; screenCanvas.height = SCR_H;
+const scrCtx = screenCanvas.getContext('2d');
+let screenTexture, scrMesh;
+
+// ── Thumbnail renderer (off-DOM canvas, preserveDrawingBuffer) ─────────────
+const thumbCanvas = document.createElement('canvas');
+thumbCanvas.width = 80; thumbCanvas.height = 80;
+let spR, spSc, spCam, spMesh;
+
+// ── Main Three.js scene ────────────────────────────────────────────────────
+let renderer, scene, camera, deviceMesh, flipMesh;
 
 function buildScene() {
   const canvas = document.getElementById('hd-canvas');
@@ -201,6 +171,7 @@ function buildScene() {
   renderer.setClearColor(0x000000, 0);
   scene = new THREE.Scene();
 
+  // Lights
   scene.add(new THREE.AmbientLight(0x503020, 0.65));
   const key = new THREE.DirectionalLight(0xffcc88, 1.1);
   key.position.set(-0.5, 2.5, 2); scene.add(key);
@@ -209,20 +180,40 @@ function buildScene() {
   const scnLight = new THREE.PointLight(0xffaa33, 1.2, 1.5);
   scnLight.position.set(0, 0.28, 0.30); scene.add(scnLight);
 
-  const bMat    = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
-  const fMat    = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
-  const scrMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.02, 0.01, 0.00), emissive: new THREE.Color(0.38, 0.20, 0.02), emissiveIntensity: 0.9 });
+  // Screen texture
+  screenTexture = new THREE.CanvasTexture(screenCanvas);
+
+  // Materials
+  const bMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.40) });
+  const fMat   = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.40, 0.38) });
+  // Screen: map the canvas texture; slight emissive so it glows like a lit display
+  const scrMat = new THREE.MeshLambertMaterial({
+    map: screenTexture,
+    emissive: new THREE.Color(0.12, 0.05, 0.00),
+    emissiveIntensity: 0.8,
+  });
   const blkMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.06, 0.06, 0.08) });
   const r1Mat   = new THREE.MeshBasicMaterial({ color: 0xff4444 });
   const b1Mat   = new THREE.MeshBasicMaterial({ color: 0x4488ff });
   const gMat    = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
   const slotMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.03, 0.03, 0.04) });
 
+  // Body
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.08), bMat);
-  const flip = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.06), fMat);
-  flip.position.set(0, 0.25, 0.03); flip.rotation.x = 0.5;
-  const scr = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.01), scrMat);
-  scr.position.set(0, 0.02, 0.031); flip.add(scr);
+
+  // Flip housing (rebuilt when scrW/scrH changes)
+  const flip = new THREE.Mesh(new THREE.BoxGeometry(s.scrW + 0.08, s.scrH + 0.08, 0.06), fMat);
+  flip.position.set(0, 0.25, 0.03);
+  flip.rotation.x = s.dFA;
+  flipMesh = flip;
+
+  // Screen mesh — texture projected here
+  const scr = new THREE.Mesh(new THREE.BoxGeometry(s.scrW, s.scrH, 0.01), scrMat);
+  scr.position.set(0, 0.02, 0.031);
+  flip.add(scr);
+  scrMesh = scr;
+
+  // Body details
   const tl = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), gMat);
   tl.position.set(-0.06, 0.15, 0.041); body.add(tl);
   const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.01), r1Mat);
@@ -231,18 +222,15 @@ function buildScene() {
   b2.position.set(0.05, 0.00, 0.041); body.add(b2);
   const slot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.015, 0.085), slotMat);
   slot.position.set(0, -0.08, 0); body.add(slot);
+
   body.add(flip);
   scene.add(body);
   deviceMesh = body;
 }
 
-// ── Three.js — scan thumbnail ───────────────────────────────────────────────
-let spR, spSc, spCam, spMesh;
-
 function buildScanPreview() {
-  const c = document.getElementById('scp-canvas');
-  spR = new THREE.WebGLRenderer({ canvas: c, antialias: false, alpha: true });
-  spR.setSize(60, 60, false);
+  spR = new THREE.WebGLRenderer({ canvas: thumbCanvas, antialias: false, alpha: true, preserveDrawingBuffer: true });
+  spR.setSize(80, 80, false);
   spR.setClearColor(0x000000, 0);
   spSc = new THREE.Scene();
   spCam = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
@@ -257,103 +245,184 @@ function buildScanPreview() {
   spSc.add(spMesh);
 }
 
-// ── Apply state → DOM + Three.js ───────────────────────────────────────────
+// ── Text wrapping helper ───────────────────────────────────────────────────
+function fillWrapped(ctx, text, x, y, maxW, lineH) {
+  const words = text.split(' ');
+  let line = '';
+  for (let i = 0; i < words.length; i++) {
+    const test = line + words[i] + ' ';
+    if (ctx.measureText(test).width > maxW && i > 0) {
+      ctx.fillText(line.trim(), x, y);
+      line = words[i] + ' ';
+      y += lineH;
+    } else {
+      line = test;
+    }
+  }
+  ctx.fillText(line.trim(), x, y);
+  return y + lineH;
+}
+
+// ── Draw scan card content onto screen texture ─────────────────────────────
+function drawScreenTexture(now) {
+  const w = SCR_W, h = SCR_H;
+  const pad = Math.round(14 * s.scFS);
+  const bw  = s.scBW;
+  const fs  = Math.round(22 * s.scFS);
+
+  // Background
+  scrCtx.fillStyle = `rgba(6, 2, 14, ${s.scOp})`;
+  scrCtx.fillRect(0, 0, w, h);
+
+  // Subtle scanlines
+  for (let y = 0; y < h; y += 4) {
+    scrCtx.fillStyle = 'rgba(0,0,0,0.07)';
+    scrCtx.fillRect(0, y, w, 1);
+  }
+
+  // Inner ambient glow
+  const grd = scrCtx.createRadialGradient(w * 0.5, h * 0.4, 0, w * 0.5, h * 0.5, w * 0.55);
+  grd.addColorStop(0, 'rgba(255,140,20,0.06)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  scrCtx.fillStyle = grd;
+  scrCtx.fillRect(0, 0, w, h);
+
+  // Border
+  if (bw > 0) {
+    scrCtx.strokeStyle = `rgba(255,170,50,${s.scBO})`;
+    scrCtx.lineWidth = bw;
+    scrCtx.strokeRect(bw * 0.5, bw * 0.5, w - bw, h - bw);
+  }
+
+  // Type label
+  const topY = bw + pad;
+  scrCtx.fillStyle = 'rgba(255,170,50,0.5)';
+  scrCtx.font = `${Math.round(fs * 0.6)}px monospace`;
+  scrCtx.textBaseline = 'top';
+  scrCtx.fillText('◆  F A U N A', bw + pad, topY);
+
+  // Thumbnail
+  const thumbH = Math.round(h * s.scTh);
+  const thumbW = thumbH;
+  const thumbX = bw + pad;
+  const thumbY = topY + Math.round(fs * 0.65) + 6;
+
+  scrCtx.fillStyle = 'rgba(8,3,18,0.9)';
+  scrCtx.fillRect(thumbX, thumbY, thumbW, thumbH);
+  scrCtx.strokeStyle = 'rgba(255,170,50,0.25)';
+  scrCtx.lineWidth = 1;
+  scrCtx.strokeRect(thumbX, thumbY, thumbW, thumbH);
+  try { scrCtx.drawImage(thumbCanvas, thumbX, thumbY, thumbW, thumbH); } catch(e) {}
+
+  // Text area (right of thumbnail)
+  const textX = thumbX + thumbW + Math.round(10 * s.scFS);
+  const textMaxW = w - textX - bw - pad;
+  let textY = thumbY;
+
+  // Species name
+  scrCtx.fillStyle = 'rgba(255,200,100,0.95)';
+  scrCtx.font = `bold ${fs}px monospace`;
+  textY = fillWrapped(scrCtx, 'Luminous Crawler', textX, textY, textMaxW, fs + 3);
+
+  // Divider
+  textY += 3;
+  scrCtx.strokeStyle = 'rgba(255,170,50,0.22)';
+  scrCtx.lineWidth = 1;
+  scrCtx.beginPath();
+  scrCtx.moveTo(textX, textY); scrCtx.lineTo(textX + textMaxW, textY);
+  scrCtx.stroke();
+  textY += 7;
+
+  // Description
+  const smallFS = Math.round(fs * 0.72);
+  scrCtx.fillStyle = 'rgba(255,170,50,0.7)';
+  scrCtx.font = `${smallFS}px monospace`;
+  textY = fillWrapped(scrCtx, 'Bioluminescent hexapod, cave-dwelling', textX, textY, textMaxW, smallFS + 3);
+
+  textY += 4;
+
+  // Traits
+  const tinyFS = Math.round(fs * 0.6);
+  scrCtx.fillStyle = 'rgba(255,170,50,0.5)';
+  scrCtx.font = `${tinyFS}px monospace`;
+  scrCtx.fillText('Nocturnal · Harmless · Rare', textX, textY);
+
+  // Animated scan bar (bottom strip)
+  const barY  = h - bw - pad - 4;
+  const barX  = bw + pad + thumbW + Math.round(10 * s.scFS);
+  const barW  = w - barX - bw - pad;
+  const barH  = 3;
+  scrCtx.fillStyle = 'rgba(255,170,50,0.18)';
+  scrCtx.fillRect(barX, barY, barW, barH);
+  const phase  = (now * 0.001 / 1.5) % 1;
+  const pos    = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+  const fillW  = barW * 0.35;
+  scrCtx.fillStyle = 'rgba(255,170,50,0.85)';
+  scrCtx.fillRect(barX + pos * (barW - fillW), barY, fillW, barH);
+
+  screenTexture.needsUpdate = true;
+}
+
+// ── Rebuild screen geometry when its size changes ──────────────────────────
+function rebuildScreen() {
+  if (!scrMesh || !flipMesh) return;
+  // Replace screen geometry
+  scrMesh.geometry.dispose();
+  scrMesh.geometry = new THREE.BoxGeometry(s.scrW, s.scrH, 0.01);
+  // Resize flip housing to surround screen
+  flipMesh.geometry.dispose();
+  flipMesh.geometry = new THREE.BoxGeometry(s.scrW + 0.08, s.scrH + 0.08, 0.06);
+}
+
+// ── Apply state ────────────────────────────────────────────────────────────
 function applyState() {
   // Viewport
   const vp = document.getElementById('vp');
   vp.style.width  = s.vpW + 'px';
   vp.style.height = s.vpH + 'px';
 
-  // Held device container
+  // Device canvas
   const hd = document.getElementById('hd-wrap');
   hd.style.width  = s.cvW + 'px';
   hd.style.height = s.cvH + 'px';
   hd.style.right  = s.cvR + 'px';
   hd.style.bottom = (-s.cvBF) + 'px';
 
-  // Renderer + camera (recreate camera on each apply — lightweight)
   renderer.setSize(s.cvW, s.cvH, false);
   camera = new THREE.PerspectiveCamera(s.camFov, s.cvW / s.cvH, 0.01, 20);
   camera.position.set(s.camX, s.camY, s.camZ);
   camera.lookAt(0, s.camLY, 0);
 
-  // Device mesh
   if (deviceMesh) {
     deviceMesh.scale.setScalar(s.dSc);
     deviceMesh.position.set(0, s.dPy, 0);
     deviceMesh.rotation.set(s.dRx, s.dRy, s.dRz);
   }
+  if (flipMesh) flipMesh.rotation.x = s.dFA;
 
-  // Scan card size + position + style
-  const sc = document.getElementById('scan-card-p');
-  sc.style.width      = s.scW + 'px';
-  sc.style.height     = s.scH + 'px';
-  sc.style.right      = s.scR + 'px';
-  sc.style.bottom     = s.scB + 'px';
-  sc.style.background = `rgba(6,2,14,${s.scOp})`;
-  sc.style.border     = `${s.scBW}px solid rgba(255,170,50,${s.scBO})`;
-  sc.style.boxShadow  = `0 0 14px rgba(255,160,40,${(s.scBO * 0.3).toFixed(2)}), inset 0 0 18px rgba(255,140,20,0.06)`;
-
-  // Layout: row when wide, column when squarish (ratio > 0.6)
-  const isCol = s.scH / s.scW > 0.6;
-  sc.style.flexDirection = isCol ? 'column' : 'row';
-  sc.style.alignItems    = isCol ? 'center' : 'flex-start';
-
-  // Thumbnail
-  const wrap   = sc.querySelector('.scp-wrap');
-  const scpTxt = sc.querySelector('.scp-text');
-  const th = s.scThumb;
-  wrap.style.width    = th + 'px';
-  wrap.style.height   = th + 'px';
-  wrap.style.minWidth = th + 'px';
-  const spC = document.getElementById('scp-canvas');
-  spC.style.width  = th + 'px';
-  spC.style.height = th + 'px';
-
-  if (isCol) {
-    wrap.style.marginBottom = '4px';
-    scpTxt.style.width = '100%';
-    scpTxt.style.textAlign = 'center';
-  } else {
-    wrap.style.marginBottom = '0';
-    scpTxt.style.width = '';
-    scpTxt.style.textAlign = '';
-  }
-
+  rebuildScreen();
   updateOutput();
 }
 
-// ── Output ──────────────────────────────────────────────────────────────────
+// ── Output ─────────────────────────────────────────────────────────────────
 function updateOutput() {
-  const isCol = s.scH / s.scW > 0.6;
   document.getElementById('output-box').textContent =
-`/* ── CSS ── */
-#held-device-wrap {
-  right: ${s.cvR}px; bottom: -${s.cvBF}px;
-  width: ${s.cvW}px; height: ${s.cvH}px;
-}
-#scan-card {
-  right: ${s.scR}px; bottom: ${s.scB}px;
-  width: ${s.scW}px; height: ${s.scH}px;
-  background: rgba(6,2,14,${s.scOp});
-  border: ${s.scBW}px solid rgba(255,170,50,${s.scBO});
-  flex-direction: ${isCol ? 'column' : 'row'};
-  align-items: ${isCol ? 'center' : 'flex-start'};
-}
-#scan-preview-wrap { width: ${s.scThumb}px; height: ${s.scThumb}px; }
-#scan-preview-canvas { width: ${s.scThumb}px; height: ${s.scThumb}px; }
-
-/* ── JS initHeldDevice() ── */
+`/* ── JS initHeldDevice() ── */
 var W = ${s.cvW}, H = ${s.cvH};
+// Canvas: right:${s.cvR}px; bottom:-${s.cvBF}px; width:${s.cvW}px; height:${s.cvH}px
 heldDeviceCamera = new THREE.PerspectiveCamera(${s.camFov}, W/H, 0.01, 20);
 heldDeviceCamera.position.set(${s.camX}, ${s.camY}, ${s.camZ});
 heldDeviceCamera.lookAt(0, ${s.camLY}, 0);
 body.scale.setScalar(${s.dSc});
 body.position.set(0, ${s.dPy}, 0);
 body.rotation.set(${s.dRx}, ${s.dRy}, ${s.dRz});
+// Screen geometry: BoxGeometry(${s.scrW}, ${s.scrH}, 0.01)
+// Flip housing:   BoxGeometry(${(s.scrW+0.08).toFixed(3)}, ${(s.scrH+0.08).toFixed(3)}, 0.06)
+// flip.rotation.x = ${s.dFA};
 
-/* ── JS animate() ── */
-// Bob device: ${s.dBob}  |  Bob card: ${s.cBob}`;
+/* ── drawHeldDeviceScreen() params ── */
+// scOp: ${s.scOp}  scBW: ${s.scBW}  scBO: ${s.scBO}
+// scFS: ${s.scFS}  scTh: ${s.scTh}`;
 }
 
 function copyOutput() {
@@ -373,11 +442,10 @@ function resetDefaults() {
     if (n) n.value = fmtVal(s[key], dec);
   });
   document.getElementById('d-bob').checked = s.dBob;
-  document.getElementById('c-bob').checked = s.cBob;
   applyState();
 }
 
-// ── Slider ↔ number input bidirectional binding ─────────────────────────────
+// ── Slider ↔ number input binding ─────────────────────────────────────────
 function fmtVal(v, dec) {
   return dec === 0 ? Math.round(v) : parseFloat(v).toFixed(dec);
 }
@@ -386,15 +454,13 @@ SLIDER_DEFS.forEach(({ id, key, min, max, dec }) => {
   const rangeEl = document.getElementById(id);
   const numEl   = document.getElementById('n-' + id);
 
-  // Range → number + state
   rangeEl.addEventListener('input', () => {
     s[key] = parseFloat(rangeEl.value);
     numEl.value = fmtVal(s[key], dec);
     applyState();
   });
 
-  // Number → range + state (on blur or Enter)
-  function commitNum() {
+  function commit() {
     let v = parseFloat(numEl.value);
     if (isNaN(v)) { numEl.value = fmtVal(s[key], dec); return; }
     v = Math.max(min, Math.min(max, v));
@@ -403,46 +469,43 @@ SLIDER_DEFS.forEach(({ id, key, min, max, dec }) => {
     numEl.value = fmtVal(v, dec);
     applyState();
   }
-  numEl.addEventListener('change', commitNum);
-  numEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); numEl.blur(); }
-  });
+  numEl.addEventListener('change', commit);
+  numEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); numEl.blur(); } });
 });
 
 document.getElementById('d-bob').addEventListener('change', e => { s.dBob = e.target.checked; });
-document.getElementById('c-bob').addEventListener('change', e => { s.cBob = e.target.checked; });
 
-// ── Animate ─────────────────────────────────────────────────────────────────
+// ── Animate ────────────────────────────────────────────────────────────────
 const t0 = performance.now();
 
 function animate() {
   requestAnimationFrame(animate);
   const now = performance.now() - t0;
 
+  // 1. Render thumbnail into off-DOM canvas
+  if (spR && spMesh) { spMesh.rotation.y += 0.012; spR.render(spSc, spCam); }
+
+  // 2. Draw scan card content onto screen texture (reads thumbnail pixels)
+  drawScreenTexture(now);
+
+  // 3. Bob the device
   if (deviceMesh) {
-    const bobY  = s.dBob ? Math.sin(now * 0.00095) * 0.005 : 0;
-    const bobRy = s.dBob ? Math.sin(now * 0.00075) * 0.022 : 0;
-    const bobRz = s.dBob ? Math.cos(now * 0.00055) * 0.010 : 0;
-    deviceMesh.position.y = s.dPy + bobY;
-    deviceMesh.rotation.y = s.dRy + bobRy;
-    deviceMesh.rotation.z = s.dRz + bobRz;
+    if (s.dBob) {
+      deviceMesh.position.y = s.dPy + Math.sin(now * 0.00095) * 0.005;
+      deviceMesh.rotation.y = s.dRy + Math.sin(now * 0.00075) * 0.022;
+      deviceMesh.rotation.z = s.dRz + Math.cos(now * 0.00055) * 0.010;
+    } else {
+      deviceMesh.position.y = s.dPy;
+      deviceMesh.rotation.y = s.dRy;
+      deviceMesh.rotation.z = s.dRz;
+    }
   }
 
-  // Card bob — convert world-unit sway to pixel offset
-  const sc = document.getElementById('scan-card-p');
-  if (s.cBob) {
-    const pxPerUnit = s.cvH / (2 * Math.tan(s.camFov * Math.PI / 360) * s.camZ);
-    const bobPx = Math.sin((performance.now() - t0) * 0.00095) * 0.005 * pxPerUnit;
-    sc.style.transform = `translateY(${(-bobPx).toFixed(1)}px)`;
-  } else {
-    sc.style.transform = '';
-  }
-
+  // 4. Render main scene
   if (renderer && scene && camera) renderer.render(scene, camera);
-  if (spR && spSc && spCam && spMesh) { spMesh.rotation.y += 0.012; spR.render(spSc, spCam); }
 }
 
-// ── Init ────────────────────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────
 buildScene();
 buildScanPreview();
 applyState();

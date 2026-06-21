@@ -18,7 +18,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #startCard p { font-size:13px;color:rgba(180,150,220,0.75);margin-bottom:24px;line-height:1.7; }
 #startBtn { background:rgba(100,50,180,0.55);color:#d8bfff;border:1px solid rgba(160,100,255,0.55);padding:12px 32px;font-family:monospace;font-size:15px;cursor:pointer;border-radius:8px;letter-spacing:0.06em; }
 #startBtn:hover { background:rgba(130,70,210,0.7); }
-#continueBtn { display:none;background:rgba(50,15,90,0.45);color:rgba(180,150,220,0.75);border:1px solid rgba(130,80,210,0.4);padding:10px 32px;font-family:monospace;font-size:13px;cursor:pointer;border-radius:8px;letter-spacing:0.06em;margin-top:10px; }
+#continueBtn { display:none;background:rgba(50,15,90,0.45);color:rgba(180,150,220,0.75);border:1px solid rgba(130,80,210,0.4);padding:10px 32px;font-family:monospace;font-size:13px;cursor:pointer;border-radius:8px;letter-spacing:0.06em;margin:10px auto 0;width:fit-content; }
 #continueBtn:hover { background:rgba(75,25,130,0.55); }
 #version-tag { position:absolute;bottom:10px;right:14px;font-size:10px;color:rgba(160,130,200,0.3);font-family:monospace;letter-spacing:0.05em;pointer-events:none; }
 #hint { font-size:11px;color:rgba(160,130,200,0.5);margin-top:16px;line-height:1.9; }
@@ -654,7 +654,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <h1>KEPLER-7X</h1>
 <p>An alien world of crystal spires, bioluminescent flora, and endless purple highlands.</p>
 <button id="startBtn">ENTER WORLD</button>
-<button id="continueBtn">CONTINUE EXPLORING</button>
+<button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
 <div id="version-tag">v7.0</div>
 </div>
@@ -1798,6 +1798,7 @@ waypoints.push({ name: 'Spawn', x: 0, z: 0, color: '#ffffff', type: 'fixed' });
 
 var activeWaypointIdx = -1;
 var locatorActive = false;
+var locatorSettleTime = 0;
 
 // 3D holographic arrow — extruded chevron with tail, clear directionality
 const arrowGroup = new THREE.Group();
@@ -1876,10 +1877,8 @@ var locatorItem = {
       return;
     }
     if (this.active) {
-      // Cycle to next waypoint
-      activeWaypointIdx++;
-      if (activeWaypointIdx >= waypoints.length) {
-        // Past last — deactivate
+      if (Date.now() - locatorSettleTime > 1800) {
+        // Settled — deactivate
         this.active = false;
         locatorActive = false;
         arrowGroup.visible = false;
@@ -1887,6 +1886,8 @@ var locatorItem = {
         showPickupNotification('Locator off');
         return;
       }
+      // Still cycling — advance to next, wrap around
+      activeWaypointIdx = (activeWaypointIdx + 1) % waypoints.length;
       var wp = waypoints[activeWaypointIdx];
       arrowMat.color.set(wp.color);
       arrowMat2.color.set(wp.color);
@@ -1904,6 +1905,7 @@ var locatorItem = {
       arrowMat2.color.set(wp2.color);
       showPickupNotification('Tracking: ' + wp2.name);
     }
+    locatorSettleTime = Date.now();
   },
   onDeactivate: function() {
     this.active = false;
@@ -2209,6 +2211,8 @@ for (var hri = 0; hri < 3; hri++) {
 var tricorderSpawned = false;
 var tricorderMesh = null;
 var tricorderPickedUp = false;
+var tricorderGlowLight = null;
+var tricorderParticleCloud = null;
 
 function onPuzzleSolved() {
   var puzzleUI2 = document.getElementById('puzzle-ui');
@@ -2260,6 +2264,36 @@ function spawnTricorder() {
   tcBody.position.set(ARTIFACT_X, artifactTerrY + 3.5, ARTIFACT_Z);
   scene.add(tcBody);
   tricorderMesh = tcBody;
+
+  // Glow light (child of body so it moves and is removed with it)
+  tricorderGlowLight = new THREE.PointLight(0x44ff88, 0.8, 6);
+  tricorderGlowLight.position.set(0, 0.3, 0);
+  tcBody.add(tricorderGlowLight);
+
+  // Aura sphere
+  var tcAuraMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.07, side: THREE.BackSide });
+  var tcAura = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 8), tcAuraMat);
+  tcBody.add(tcAura);
+
+  // Orbiting particle cloud
+  var tcPGeo = new THREE.BufferGeometry();
+  var tcPPos = new Float32Array(50 * 3);
+  for (var tpi = 0; tpi < 50; tpi++) {
+    var tpth = Math.random() * Math.PI * 2;
+    var tpph = Math.acos(2 * Math.random() - 1);
+    var tpr = 0.3 + Math.random() * 0.65;
+    tcPPos[tpi*3]   = Math.sin(tpph) * Math.cos(tpth) * tpr;
+    tcPPos[tpi*3+1] = Math.sin(tpph) * Math.sin(tpth) * tpr;
+    tcPPos[tpi*3+2] = Math.cos(tpph) * tpr;
+  }
+  tcPGeo.setAttribute('position', new THREE.Float32BufferAttribute(tcPPos, 3));
+  tricorderParticleCloud = new THREE.Points(tcPGeo, new THREE.PointsMaterial({
+    map: dotTexture, color: 0x44ff88,
+    size: MOBILE ? 0.06 : 0.08,
+    transparent: true, opacity: 0.7,
+    sizeAttenuation: true, depthWrite: false, alphaTest: 0.01
+  }));
+  tcBody.add(tricorderParticleCloud);
 
   showPickupNotification('A device has appeared...');
 }
@@ -2448,7 +2482,10 @@ function setScanPreview(targetMesh) {
   geo.center();
   geo.computeBoundingSphere();
   var radius = (geo.boundingSphere && geo.boundingSphere.radius > 0) ? geo.boundingSphere.radius : 1;
-  var scale = 1.4 / radius;
+  // Account for the mesh's own animated scale (squish/stretch on creatures)
+  var ms = targetMesh.scale;
+  var maxMS = Math.max(Math.abs(ms.x), Math.abs(ms.y), Math.abs(ms.z), 0.01);
+  var fitScale = 1.4 / (radius * maxMS);
   var srcMat = targetMesh.material;
   var baseColor = (srcMat && srcMat.color) ? srcMat.color.clone() : new THREE.Color(0.5, 0.5, 0.5);
   var baseEmissive = (srcMat && srcMat.emissive) ? srcMat.emissive.clone() : new THREE.Color(0, 0, 0);
@@ -2460,7 +2497,7 @@ function setScanPreview(targetMesh) {
     opacity: (srcMat && srcMat.opacity != null) ? srcMat.opacity : 1.0
   });
   previewMesh = new THREE.Mesh(geo, pMat);
-  previewMesh.scale.set(scale, scale, scale);
+  previewMesh.scale.set(fitScale * ms.x, fitScale * ms.y, fitScale * ms.z);
   previewScene.add(previewMesh);
 }
 
@@ -4196,12 +4233,21 @@ crystal.material.opacity = 0.45 + Math.sin(now * 0.002) * 0.15;
 if (tricorderSpawned && !tricorderPickedUp && tricorderMesh) {
   tricorderMesh.rotation.y += dt * 1.2;
   tricorderMesh.position.y = artifactTerrY + 3.5 + Math.sin(now * 0.001 * 1.5) * 0.2;
+  if (tricorderGlowLight) {
+    tricorderGlowLight.intensity = 0.7 + Math.sin(now * 0.003) * 0.45;
+  }
+  if (tricorderParticleCloud) {
+    tricorderParticleCloud.rotation.y -= dt * 0.7;
+    tricorderParticleCloud.rotation.x = Math.sin(now * 0.0005) * 0.4;
+  }
   var tdx = camera.position.x - ARTIFACT_X;
   var tdz = camera.position.z - ARTIFACT_Z;
   if (tdx*tdx + tdz*tdz < 2.25) {
     tricorderPickedUp = true;
     scene.remove(tricorderMesh);
     addToInventory(tricorderItem);
+    tricorderGlowLight = null;
+    tricorderParticleCloud = null;
   }
 }
 

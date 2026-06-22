@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fob Builder — Kepler-7X</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #08040f; color: #bbb; font-family: 'Courier New', monospace; font-size: 12px; display: flex; height: 100vh; overflow: hidden; }
+#ctrl { width: 290px; flex-shrink: 0; overflow-y: auto; background: #0c0918; border-right: 1px solid #221533; padding: 10px 12px; }
+#ctrl-title { font-size: 11px; color: #88ffbb; letter-spacing: 0.08em; margin-bottom: 4px; }
+#ctrl-sub { font-size: 8px; color: #556; letter-spacing: 0.06em; margin-bottom: 12px; }
+.group { margin-bottom: 14px; }
+.group-title { font-size: 8px; text-transform: uppercase; letter-spacing: 0.14em; color: #559977; border-bottom: 1px solid #221533; padding-bottom: 3px; margin-bottom: 7px; }
+.row { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+.row label { width: 96px; flex-shrink: 0; color: #998; font-size: 10px; }
+.row input[type=range] { flex: 1; accent-color: #44dd88; cursor: pointer; min-width: 0; }
+.val { width: 52px; flex-shrink: 0; text-align: right; color: #66ddaa; font-size: 10px; font-family: 'Courier New', monospace; background: transparent; border: none; border-bottom: 1px solid transparent; padding: 0 2px; cursor: text; -moz-appearance: textfield; }
+.val::-webkit-outer-spin-button, .val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.val:focus { border-bottom: 1px solid rgba(70,220,140,0.55); outline: none; color: #aaffcc; }
+.row input[type=checkbox] { width: 14px; height: 14px; accent-color: #44dd88; cursor: pointer; }
+.row input[type=color] { width: 40px; height: 20px; flex-shrink: 0; background: transparent; border: 1px solid #334; cursor: pointer; padding: 0; }
+.btn-row { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+button { background: #0a281a; border: 1px solid #2a8855; color: #aaffcc; padding: 4px 10px; cursor: pointer; font-size: 10px; border-radius: 3px; font-family: monospace; }
+button:hover { background: #103a26; }
+#output-box { background: #050308; border: 1px solid #221533; border-radius: 3px; padding: 8px; font-size: 9px; color: #77cc77; white-space: pre; overflow: auto; max-height: 230px; margin-top: 8px; line-height: 1.55; user-select: all; }
+#preview-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; background: #080410; overflow: hidden; }
+#preview-label { font-size: 8px; color: #335544; letter-spacing: 0.14em; text-transform: uppercase; }
+#vp { position: relative; overflow: hidden; flex-shrink: 0; background: radial-gradient(ellipse at 50% 70%, #0a1f1a 0%, #05020e 100%); border: 1px solid #1a3328; box-shadow: 0 0 40px rgba(20,80,50,0.25); border-radius: 6px; }
+#fob-canvas { display: block; cursor: grab; }
+#fob-canvas:active { cursor: grabbing; }
+#drag-hint { font-size: 8px; color: #2a4438; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+
+<div id="ctrl">
+  <div id="ctrl-title">⬢ FOB BUILDER</div>
+  <div id="ctrl-sub">tracking beacon · defaults = current in-game fob</div>
+
+  <div class="group">
+    <div class="group-title">Body</div>
+    <div class="row"><label>Width</label><input type="range" id="fb-bw"><input type="number" class="val" id="n-fb-bw"></div>
+    <div class="row"><label>Height</label><input type="range" id="fb-bh"><input type="number" class="val" id="n-fb-bh"></div>
+    <div class="row"><label>Depth</label><input type="range" id="fb-bd"><input type="number" class="val" id="n-fb-bd"></div>
+    <div class="row"><label>Center Y</label><input type="range" id="fb-by"><input type="number" class="val" id="n-fb-by"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Cap &amp; Rails</div>
+    <div class="row"><label>Cap W</label><input type="range" id="fb-cw"><input type="number" class="val" id="n-fb-cw"></div>
+    <div class="row"><label>Cap H</label><input type="range" id="fb-ch"><input type="number" class="val" id="n-fb-ch"></div>
+    <div class="row"><label>Cap D</label><input type="range" id="fb-cd"><input type="number" class="val" id="n-fb-cd"></div>
+    <div class="row"><label>Cap Y</label><input type="range" id="fb-cy"><input type="number" class="val" id="n-fb-cy"></div>
+    <div class="row"><label>Rail W</label><input type="range" id="fb-rw"><input type="number" class="val" id="n-fb-rw"></div>
+    <div class="row"><label>Rail X</label><input type="range" id="fb-rx"><input type="number" class="val" id="n-fb-rx"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Lens &amp; Details</div>
+    <div class="row"><label>Lens radius</label><input type="range" id="fb-lr"><input type="number" class="val" id="n-fb-lr"></div>
+    <div class="row"><label>Lens tube</label><input type="range" id="fb-lt"><input type="number" class="val" id="n-fb-lt"></div>
+    <div class="row"><label>Lens Y</label><input type="range" id="fb-ly"><input type="number" class="val" id="n-fb-ly"></div>
+    <div class="row"><label>Dot radius</label><input type="range" id="fb-dr"><input type="number" class="val" id="n-fb-dr"></div>
+    <div class="row"><label>Slot W</label><input type="range" id="fb-sw"><input type="number" class="val" id="n-fb-sw"></div>
+    <div class="row"><label>Slot H</label><input type="range" id="fb-sh"><input type="number" class="val" id="n-fb-sh"></div>
+    <div class="row"><label>Slot Y</label><input type="range" id="fb-sy"><input type="number" class="val" id="n-fb-sy"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Antenna</div>
+    <div class="row"><label>Top radius</label><input type="range" id="fb-atr"><input type="number" class="val" id="n-fb-atr"></div>
+    <div class="row"><label>Base radius</label><input type="range" id="fb-abr"><input type="number" class="val" id="n-fb-abr"></div>
+    <div class="row"><label>Length</label><input type="range" id="fb-ah"><input type="number" class="val" id="n-fb-ah"></div>
+    <div class="row"><label>Center Y</label><input type="range" id="fb-ay"><input type="number" class="val" id="n-fb-ay"></div>
+    <div class="row"><label>Ball radius</label><input type="range" id="fb-blr"><input type="number" class="val" id="n-fb-blr"></div>
+    <div class="row"><label>Ball Y</label><input type="range" id="fb-bly"><input type="number" class="val" id="n-fb-bly"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Colors</div>
+    <div class="row"><label>Body</label><input type="color" id="col-body"></div>
+    <div class="row"><label>Metal</label><input type="color" id="col-metal"></div>
+    <div class="row"><label>Accent / glow</label><input type="color" id="col-accent"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Presentation</div>
+    <div class="row"><label>Scale</label><input type="range" id="fb-sc"><input type="number" class="val" id="n-fb-sc"></div>
+    <div class="row"><label>Spin speed</label><input type="range" id="fb-rs"><input type="number" class="val" id="n-fb-rs"></div>
+    <div class="row"><label>Auto-spin</label><input type="checkbox" id="fb-autorot" checked></div>
+    <div class="row"><label>Show beam</label><input type="checkbox" id="fb-beam" checked></div>
+    <div class="row"><label>Show ground</label><input type="checkbox" id="fb-ground" checked></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Camera</div>
+    <div class="row"><label>FOV</label><input type="range" id="fb-fov"><input type="number" class="val" id="n-fb-fov"></div>
+    <div class="row"><label>Distance</label><input type="range" id="fb-cdist"><input type="number" class="val" id="n-fb-cdist"></div>
+    <div class="row"><label>Height</label><input type="range" id="fb-camy"><input type="number" class="val" id="n-fb-camy"></div>
+    <div class="row"><label>LookAt Y</label><input type="range" id="fb-lky"><input type="number" class="val" id="n-fb-lky"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Output</div>
+    <div class="btn-row">
+      <button id="copy-btn" onclick="copyOutput()">Copy Settings</button>
+      <button onclick="resetDefaults()">Reset</button>
+    </div>
+    <div id="output-box">← adjust, then copy</div>
+  </div>
+</div>
+
+<div id="preview-area">
+  <div id="preview-label">PREVIEW — tracking fob (drag to orbit)</div>
+  <div id="vp"><canvas id="fob-canvas"></canvas></div>
+  <div id="drag-hint">drag to rotate · scroll to zoom</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+'use strict';
+
+// ── Slider definitions ─────────────────────────────────────────────────────
+const SLIDER_DEFS = [
+  // Body
+  { id:'fb-bw',   key:'bodyW',   min:0.10, max:0.60, step:0.005, dec:3 },
+  { id:'fb-bh',   key:'bodyH',   min:0.10, max:0.60, step:0.005, dec:3 },
+  { id:'fb-bd',   key:'bodyD',   min:0.04, max:0.30, step:0.005, dec:3 },
+  { id:'fb-by',   key:'bodyY',   min:0.00, max:0.50, step:0.005, dec:3 },
+  // Cap & rails
+  { id:'fb-cw',   key:'capW',    min:0.10, max:0.60, step:0.005, dec:3 },
+  { id:'fb-ch',   key:'capH',    min:0.02, max:0.20, step:0.005, dec:3 },
+  { id:'fb-cd',   key:'capD',    min:0.04, max:0.30, step:0.005, dec:3 },
+  { id:'fb-cy',   key:'capY',    min:0.10, max:0.70, step:0.005, dec:3 },
+  { id:'fb-rw',   key:'railW',   min:0.00, max:0.06, step:0.002, dec:3 },
+  { id:'fb-rx',   key:'railX',   min:0.05, max:0.30, step:0.005, dec:3 },
+  // Lens & details
+  { id:'fb-lr',   key:'lensR',   min:0.01, max:0.12, step:0.002, dec:3 },
+  { id:'fb-lt',   key:'lensTube',min:0.004,max:0.04, step:0.002, dec:3 },
+  { id:'fb-ly',   key:'lensY',   min:0.05, max:0.60, step:0.005, dec:3 },
+  { id:'fb-dr',   key:'dotR',    min:0.00, max:0.05, step:0.002, dec:3 },
+  { id:'fb-sw',   key:'slotW',   min:0.00, max:0.20, step:0.005, dec:3 },
+  { id:'fb-sh',   key:'slotH',   min:0.00, max:0.25, step:0.005, dec:3 },
+  { id:'fb-sy',   key:'slotY',   min:0.00, max:0.40, step:0.005, dec:3 },
+  // Antenna
+  { id:'fb-atr',  key:'antTopR', min:0.004,max:0.04, step:0.001, dec:3 },
+  { id:'fb-abr',  key:'antBotR', min:0.004,max:0.05, step:0.001, dec:3 },
+  { id:'fb-ah',   key:'antH',    min:0.00, max:0.50, step:0.005, dec:3 },
+  { id:'fb-ay',   key:'antY',    min:0.20, max:0.80, step:0.005, dec:3 },
+  { id:'fb-blr',  key:'ballR',   min:0.00, max:0.08, step:0.002, dec:3 },
+  { id:'fb-bly',  key:'ballY',   min:0.30, max:1.00, step:0.005, dec:3 },
+  // Presentation
+  { id:'fb-sc',   key:'scale',   min:0.30, max:3.00, step:0.05,  dec:2 },
+  { id:'fb-rs',   key:'rotSpeed',min:0.00, max:2.00, step:0.05,  dec:2 },
+  // Camera
+  { id:'fb-fov',  key:'fov',     min:20,   max:90,   step:1,     dec:0 },
+  { id:'fb-cdist',key:'camDist', min:0.60, max:4.00, step:0.05,  dec:2 },
+  { id:'fb-camy', key:'camY',    min:-0.20,max:1.50, step:0.05,  dec:2 },
+  { id:'fb-lky',  key:'lookY',   min:0.00, max:0.80, step:0.01,  dec:2 },
+];
+
+// Defaults map directly to the current in-game fob (index.html beaconGroup)
+const DEFAULTS = {
+  bodyW:0.30, bodyH:0.35, bodyD:0.12, bodyY:0.175,
+  capW:0.32, capH:0.06, capD:0.13, capY:0.37,
+  railW:0.025, railX:0.16,
+  lensR:0.045, lensTube:0.012, lensY:0.26, dotR:0.02,
+  slotW:0.06, slotH:0.10, slotY:0.12,
+  antTopR:0.015, antBotR:0.018, antH:0.25, antY:0.525,
+  ballR:0.04, ballY:0.67,
+  scale:1.0, rotSpeed:0.45,
+  fov:42, camDist:1.5, camY:0.5, lookY:0.33,
+  autoRot:true, showBeam:true, showGround:true,
+  bodyColor:'#0d0d12', metalColor:'#8c8c99', accentColor:'#44ff88',
+};
+
+const s = Object.assign({}, DEFAULTS);
+
+// ── Three.js scene ──────────────────────────────────────────────────────────
+let renderer, scene, camera;
+let fobGroup = null, beamGroup = null, groundMesh = null, accentLight = null;
+let blackMat, metalMat, accentMat, slotMat;
+let manualYaw = 0, manualPitch = 0, dragging = false, lastX = 0, lastY = 0;
+
+function buildScene() {
+  const canvas = document.getElementById('fob-canvas');
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+  scene = new THREE.Scene();
+
+  scene.add(new THREE.AmbientLight(0x405060, 0.7));
+  const key = new THREE.DirectionalLight(0xfff0e0, 1.05);
+  key.position.set(-1, 2.2, 2); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x4466aa, 0.4);
+  fill.position.set(1.5, -0.5, -1.5); scene.add(fill);
+  accentLight = new THREE.PointLight(0x44ff88, 0.6, 1.6);
+  accentLight.position.set(0, 0.3, 0.5); scene.add(accentLight);
+
+  // Persistent materials (colors updated in applyState)
+  blackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(s.bodyColor) });
+  metalMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(s.metalColor) });
+  accentMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(s.accentColor), transparent: true, opacity: 0.9 });
+  slotMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0e });
+
+  // Ground reference disc
+  groundMesh = new THREE.Mesh(
+    new THREE.CircleGeometry(0.9, 40),
+    new THREE.MeshBasicMaterial({ color: 0x0c1a14, transparent: true, opacity: 0.55 })
+  );
+  groundMesh.rotation.x = -Math.PI / 2;
+  groundMesh.position.y = 0.001;
+  scene.add(groundMesh);
+
+  buildBeam();
+  buildFob();
+}
+
+// Subtle beacon beam (toggle); colors refreshed in applyState
+function buildBeam() {
+  beamGroup = new THREE.Group();
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.12, 1.6, 16, 1, true),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(s.accentColor), transparent: true, opacity: 0.10, side: THREE.DoubleSide })
+  );
+  beam.position.y = 0.95;
+  beamGroup.add(beam);
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 1.6, 8, 1, true),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(s.accentColor), transparent: true, opacity: 0.30, side: THREE.DoubleSide })
+  );
+  core.position.y = 0.95;
+  beamGroup.add(core);
+  const glow = new THREE.Mesh(
+    new THREE.RingGeometry(0.1, 0.55, 24),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(s.accentColor), transparent: true, opacity: 0.28, side: THREE.DoubleSide })
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.02;
+  beamGroup.add(glow);
+  scene.add(beamGroup);
+}
+
+function disposeGroup(g) {
+  if (!g) return;
+  g.traverse(o => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
+}
+
+// (Re)build the fob from current state. Front-face details auto-attach to the
+// body's front so they stay aligned when the body depth/size changes.
+function buildFob() {
+  if (fobGroup) { scene.remove(fobGroup); disposeGroup(fobGroup); }
+  const g = new THREE.Group();
+  const frontZ = s.bodyD / 2;
+
+  // Main black body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(s.bodyW, s.bodyH, s.bodyD), blackMat);
+  body.position.y = s.bodyY; g.add(body);
+
+  // Silver top cap
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(s.capW, s.capH, s.capD), metalMat);
+  cap.position.y = s.capY; g.add(cap);
+
+  // Silver side rails (wrap the body's side edges)
+  if (s.railW > 0) {
+    const railD = s.bodyD + 0.01;
+    const railL = new THREE.Mesh(new THREE.BoxGeometry(s.railW, s.bodyH, railD), metalMat);
+    railL.position.set(-s.railX, s.bodyY, 0); g.add(railL);
+    const railR = new THREE.Mesh(new THREE.BoxGeometry(s.railW, s.bodyH, railD), metalMat);
+    railR.position.set(s.railX, s.bodyY, 0); g.add(railR);
+  }
+
+  // Lens ring + glowing lens
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(s.lensR, s.lensTube, 8, 18), metalMat);
+  ring.position.set(0, s.lensY, frontZ + 0.001); g.add(ring);
+  const lens = new THREE.Mesh(new THREE.SphereGeometry(s.lensR * 0.9, 12, 10), accentMat);
+  lens.position.set(0, s.lensY, frontZ + 0.005); g.add(lens);
+
+  // Dark slot below the lens
+  if (s.slotW > 0 && s.slotH > 0) {
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(s.slotW, s.slotH, 0.01), slotMat);
+    slot.position.set(0, s.slotY, frontZ + 0.001); g.add(slot);
+  }
+
+  // Small green dot centered on the front face
+  if (s.dotR > 0) {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(s.dotR, 8, 8), accentMat);
+    dot.position.set(0, s.bodyY, frontZ + 0.002); g.add(dot);
+  }
+
+  // Antenna + ball
+  if (s.antH > 0) {
+    const ant = new THREE.Mesh(new THREE.CylinderGeometry(s.antTopR, s.antBotR, s.antH, 8), blackMat);
+    ant.position.set(0, s.antY, 0); g.add(ant);
+  }
+  if (s.ballR > 0) {
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(s.ballR, 10, 10), blackMat);
+    ball.position.set(0, s.ballY, 0); g.add(ball);
+  }
+
+  fobGroup = g;
+  scene.add(g);
+}
+
+// ── Apply state to scene + DOM ─────────────────────────────────────────────
+function applyState() {
+  // Colors (in place — no rebuild needed)
+  blackMat.color.set(s.bodyColor);
+  metalMat.color.set(s.metalColor);
+  accentMat.color.set(s.accentColor);
+  if (accentLight) accentLight.color.set(s.accentColor);
+  if (beamGroup) beamGroup.traverse(o => { if (o.isMesh) o.material.color.set(s.accentColor); });
+
+  buildFob();
+  if (fobGroup) fobGroup.scale.setScalar(s.scale);
+  if (beamGroup) { beamGroup.visible = s.showBeam; beamGroup.scale.setScalar(s.scale); }
+  if (groundMesh) groundMesh.visible = s.showGround;
+
+  // Camera + canvas
+  const W = 560, H = 640;
+  renderer.setSize(W, H);  // updateStyle:true — sets canvas CSS size, buffer = W*pixelRatio
+  document.getElementById('vp').style.width = W + 'px';
+  document.getElementById('vp').style.height = H + 'px';
+  camera = new THREE.PerspectiveCamera(s.fov, W / H, 0.01, 50);
+  camera.position.set(0, s.camY, s.camDist);
+  camera.lookAt(0, s.lookY, 0);
+
+  updateOutput();
+}
+
+// ── Output ─────────────────────────────────────────────────────────────────
+function sv(v) { return parseFloat((v * s.scale).toFixed(4)); } // scaled value
+function updateOutput() {
+  const railD = parseFloat((s.bodyD + 0.01).toFixed(3));
+  const frontZ = parseFloat((s.bodyD / 2).toFixed(4));
+  document.getElementById('output-box').textContent =
+`/* ── Tracking fob (beaconGroup) ── */
+/* colors */
+body:   new THREE.Color('${s.bodyColor}')
+metal:  new THREE.Color('${s.metalColor}')
+accent: ${s.accentColor.replace('#','0x')}
+${s.scale !== 1 ? '/* values below already include scale '+s.scale+' */\n' : ''}// Body
+BoxGeometry(${sv(s.bodyW)}, ${sv(s.bodyH)}, ${sv(s.bodyD)})  y=${sv(s.bodyY)}
+// Cap
+BoxGeometry(${sv(s.capW)}, ${sv(s.capH)}, ${sv(s.capD)})  y=${sv(s.capY)}
+// Rails (x = ±${sv(s.railX)})
+BoxGeometry(${sv(s.railW)}, ${sv(s.bodyH)}, ${sv(railD)})  y=${sv(s.bodyY)}
+// Lens ring
+TorusGeometry(${sv(s.lensR)}, ${sv(s.lensTube)}, 8, 18)  pos(0, ${sv(s.lensY)}, ${sv(frontZ)})
+// Lens glow  SphereGeometry(${sv(s.lensR*0.9)})  z=${sv(frontZ)}
+// Dot        SphereGeometry(${sv(s.dotR)})  pos(0, ${sv(s.bodyY)}, ${sv(frontZ)})
+// Slot       BoxGeometry(${sv(s.slotW)}, ${sv(s.slotH)}, 0.01)  y=${sv(s.slotY)}
+// Antenna    CylinderGeometry(${sv(s.antTopR)}, ${sv(s.antBotR)}, ${sv(s.antH)}, 8)  y=${sv(s.antY)}
+// Ball       SphereGeometry(${sv(s.ballR)})  y=${sv(s.ballY)}`;
+}
+
+function copyOutput() {
+  navigator.clipboard.writeText(document.getElementById('output-box').textContent).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = 'Copy Settings'; }, 1500);
+  });
+}
+
+function resetDefaults() {
+  Object.assign(s, DEFAULTS);
+  SLIDER_DEFS.forEach(({ id, key, dec }) => {
+    const r = document.getElementById(id), n = document.getElementById('n-' + id);
+    if (r) r.value = s[key];
+    if (n) n.value = fmtVal(s[key], dec);
+  });
+  document.getElementById('fb-autorot').checked = s.autoRot;
+  document.getElementById('fb-beam').checked = s.showBeam;
+  document.getElementById('fb-ground').checked = s.showGround;
+  document.getElementById('col-body').value = s.bodyColor;
+  document.getElementById('col-metal').value = s.metalColor;
+  document.getElementById('col-accent').value = s.accentColor;
+  manualYaw = 0; manualPitch = 0;
+  applyState();
+}
+
+// ── Slider ↔ number input bidirectional binding ────────────────────────────
+function fmtVal(v, dec) { return dec === 0 ? Math.round(v) : parseFloat(v).toFixed(dec); }
+
+SLIDER_DEFS.forEach(({ id, key, min, max, dec }) => {
+  const rEl = document.getElementById(id), nEl = document.getElementById('n-' + id);
+  // initialize attributes from def
+  const def = SLIDER_DEFS.find(d => d.id === id);
+  rEl.min = def.min; rEl.max = def.max; rEl.step = def.step;
+  nEl.min = def.min; nEl.max = def.max; nEl.step = def.step;
+  rEl.addEventListener('input', () => {
+    s[key] = parseFloat(rEl.value); nEl.value = fmtVal(s[key], dec); applyState();
+  });
+  function commit() {
+    let v = parseFloat(nEl.value);
+    if (isNaN(v)) { nEl.value = fmtVal(s[key], dec); return; }
+    v = Math.max(min, Math.min(max, v));
+    s[key] = v; rEl.value = v; nEl.value = fmtVal(v, dec); applyState();
+  }
+  nEl.addEventListener('change', commit);
+  nEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nEl.blur(); } });
+});
+
+document.getElementById('fb-autorot').addEventListener('change', e => { s.autoRot = e.target.checked; });
+document.getElementById('fb-beam').addEventListener('change', e => { s.showBeam = e.target.checked; applyState(); });
+document.getElementById('fb-ground').addEventListener('change', e => { s.showGround = e.target.checked; applyState(); });
+document.getElementById('col-body').addEventListener('input', e => { s.bodyColor = e.target.value; applyState(); });
+document.getElementById('col-metal').addEventListener('input', e => { s.metalColor = e.target.value; applyState(); });
+document.getElementById('col-accent').addEventListener('input', e => { s.accentColor = e.target.value; applyState(); });
+
+// ── Drag to orbit + scroll to zoom ─────────────────────────────────────────
+const cvEl = document.getElementById('fob-canvas');
+cvEl.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  manualYaw += (e.clientX - lastX) * 0.01;
+  manualPitch = Math.max(-0.6, Math.min(0.6, manualPitch + (e.clientY - lastY) * 0.008));
+  lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+cvEl.addEventListener('wheel', e => {
+  e.preventDefault();
+  s.camDist = Math.max(0.6, Math.min(4, s.camDist * (e.deltaY < 0 ? 0.92 : 1.08)));
+  const r = document.getElementById('fb-cdist'), n = document.getElementById('n-fb-cdist');
+  r.value = s.camDist; n.value = fmtVal(s.camDist, 2);
+  applyState();
+}, { passive: false });
+// touch (basic)
+cvEl.addEventListener('touchstart', e => { if (e.touches.length === 1) { dragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; } }, { passive: true });
+cvEl.addEventListener('touchmove', e => {
+  if (!dragging || e.touches.length !== 1) return;
+  manualYaw += (e.touches[0].clientX - lastX) * 0.01;
+  manualPitch = Math.max(-0.6, Math.min(0.6, manualPitch + (e.touches[0].clientY - lastY) * 0.008));
+  lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+}, { passive: true });
+cvEl.addEventListener('touchend', () => { dragging = false; });
+
+// ── Animate ────────────────────────────────────────────────────────────────
+let prev = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+  if (s.autoRot && !dragging) manualYaw += s.rotSpeed * dt;
+  if (fobGroup) fobGroup.rotation.set(manualPitch, manualYaw, 0);
+  if (beamGroup) beamGroup.rotation.y = manualYaw; // keep glow ring aligned
+  if (renderer && scene && camera) renderer.render(scene, camera);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildScene();
+resetDefaults();
+animate();
+</script>
+</body>
+</html>

@@ -514,7 +514,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   -webkit-user-select:none;
   cursor:grab;
   transform-origin:top left;
-  z-index:7;
+  z-index:30;
 }
 #held-locator-wrap:active { cursor:grabbing; }
 #held-locator-canvas {
@@ -740,7 +740,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.25</div>
+<div id="version-tag">v7.26</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -3113,6 +3113,14 @@ function drawHeldLocatorScreen() {
     ctx.beginPath(); ctx.moveTo(pad, ry + rowH - 4); ctx.lineTo(w - pad, ry + rowH - 4); ctx.stroke();
     locRowRects.push({ y0: ry, y1: ry + rowH - 6, idx: i });
   }
+  // ＋ DROP PIN action row
+  var dpY = y0 + waypoints.length * rowH;
+  if (dpY + 44 < h - 6) {
+    ctx.fillStyle = 'rgba(70,220,140,0.10)'; ctx.fillRect(8, dpY, w - 16, 42);
+    ctx.fillStyle = 'rgba(150,255,200,0.92)'; ctx.font = 'bold 22px monospace';
+    ctx.fillText('＋ DROP PIN', pad + 8, dpY + 10);
+    locRowRects.push({ y0: dpY, y1: dpY + 42, idx: -10 });
+  }
   heldLocScreenTexture.needsUpdate = true;
 }
 
@@ -3144,7 +3152,13 @@ function locTapAt(clientX, clientY) {
   // UV (0,0)=bottom-left → canvas px from top
   var pxY = (1 - hits[0].uv.y) * heldLocScreenCanvas.height;
   for (var i = 0; i < locRowRects.length; i++) {
-    if (pxY >= locRowRects[i].y0 && pxY <= locRowRects[i].y1) { locSelectWaypoint(locRowRects[i].idx); return; }
+    if (pxY >= locRowRects[i].y0 && pxY <= locRowRects[i].y1) {
+      var ri = locRowRects[i].idx;
+      if (ri === -10) { dropPin(); return; }                 // ＋ DROP PIN row
+      // Tapping an already-active pin opens its editor (rename / recolor)
+      if (waypoints[ri] && waypoints[ri].type === 'pin' && ri === activeWaypointIdx) { openPinEditor(ri); return; }
+      locSelectWaypoint(ri); return;
+    }
   }
 }
 
@@ -3885,8 +3899,7 @@ waypointList.addEventListener('click', function(e) {
 waypointList.addEventListener('touchend', function(e) { e.stopPropagation(); }, {passive:true});
 waypointList.addEventListener('touchstart', function(e) { e.stopPropagation(); }, {passive:true});
 
-dropPinBtn.addEventListener('click', function(e) {
-  e.stopPropagation();
+function dropPin() {
   var pinColor = pinColors[nextPinColorIdx % pinColors.length];
   nextPinColorIdx++;
   var pinName = 'Pin ' + nextPinColorIdx;
@@ -3899,23 +3912,9 @@ dropPinBtn.addEventListener('click', function(e) {
   });
   updateWaypointPanel();
   showPickupNotification('Pin dropped: ' + pinName);
-});
-dropPinBtn.addEventListener('touchend', function(e) {
-  e.stopPropagation();
-  e.preventDefault();
-  var pinColor = pinColors[nextPinColorIdx % pinColors.length];
-  nextPinColorIdx++;
-  var pinName = 'Pin ' + nextPinColorIdx;
-  waypoints.push({
-    name: pinName,
-    x: Math.round(camera.position.x),
-    z: Math.round(camera.position.z),
-    color: pinColor,
-    type: 'pin'
-  });
-  updateWaypointPanel();
-  showPickupNotification('Pin dropped: ' + pinName);
-}, {passive:false});
+}
+dropPinBtn.addEventListener('click', function(e) { e.stopPropagation(); dropPin(); });
+dropPinBtn.addEventListener('touchend', function(e) { e.stopPropagation(); e.preventDefault(); dropPin(); }, {passive:false});
 
 // ── Pin Editor ─────────────────────────────────────────────
 var pinEditor = document.getElementById('pin-editor');
@@ -3943,11 +3942,11 @@ function openPinEditor(idx) {
   for (var si = 0; si < swatches.length; si++) {
     swatches[si].classList.toggle('selected', swatches[si].getAttribute('data-color') === editingPinColor);
   }
-  // Position near the waypoint panel
-  var wpRect = waypointPanel.getBoundingClientRect();
-  pinEditor.style.left = wpRect.left + 'px';
-  pinEditor.style.top = Math.max(10, wpRect.top - 10) + 'px';
+  // Locations list lives on the device now → center the editor on screen
   pinEditor.style.display = 'block';
+  var pr = pinEditor.getBoundingClientRect();
+  pinEditor.style.left = Math.max(10, Math.round((window.innerWidth - pr.width) / 2)) + 'px';
+  pinEditor.style.top = Math.max(10, Math.round((window.innerHeight - pr.height) / 2)) + 'px';
 }
 
 function closePinEditor() {
@@ -4047,34 +4046,9 @@ pinColorPicks.addEventListener('touchend', function(e) {
 }, {passive:false});
 
 function positionWaypointPanel() {
-  if (!minimapExpanded) { waypointPanel.style.display = 'none'; return; }
-  // Only show waypoint panel if player has the locator
-  var hasLocator = false;
-  for (var hli = 0; hli < inventory.length; hli++) {
-    if (inventory[hli] && inventory[hli].name === 'Locator') { hasLocator = true; break; }
-  }
-  if (!hasLocator) { waypointPanel.style.display = 'none'; return; }
-  waypointPanel.style.display = 'block';
-  var canvas2 = document.getElementById('minimap-canvas');
-  var r = canvas2.getBoundingClientRect();
-  var isLandscape = window.innerWidth > window.innerHeight;
-  if (isLandscape) {
-    // Landscape: to the right of map + zoom controls, wider
-    waypointPanel.style.right = 'auto';
-    waypointPanel.style.left = (r.right + 50) + 'px';
-    waypointPanel.style.top = r.top + 'px';
-    waypointPanel.style.width = '200px';
-    waypointPanel.style.maxHeight = r.height + 'px';
-  } else {
-    // Portrait: below map + zoom slider, half screen width, aligned right
-    var panelW = Math.floor(window.innerWidth * 0.5);
-    waypointPanel.style.left = 'auto';
-    waypointPanel.style.right = '12px';
-    waypointPanel.style.top = (r.bottom + 46) + 'px';
-    waypointPanel.style.width = panelW + 'px';
-    waypointPanel.style.maxHeight = (window.innerHeight - r.bottom - 100) + 'px';
-  }
-  updateWaypointPanel();
+  // The locations list now lives on the held locator device, not the map.
+  // The map keeps its pulsing icons; the panel stays hidden.
+  if (waypointPanel) waypointPanel.style.display = 'none';
 }
 
 // Re-layout fullscreen map on orientation/resize change

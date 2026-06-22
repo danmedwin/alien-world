@@ -703,7 +703,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.21</div>
+<div id="version-tag">v7.22</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2633,7 +2633,7 @@ var previewRotY = 0;
 var heldDeviceRenderer = null, heldDeviceScene = null, heldDeviceCamera = null, heldDeviceMesh = null;
 var heldDeviceScreenCanvas = null, heldDeviceScrCtx = null, heldDeviceScreenTexture = null;
 var heldDeviceScanData = null;
-var heldDeviceBBox = null, heldDeviceVTemp = null, heldDeviceWrap = null;
+var heldDeviceVTemp = null, heldDeviceWrap = null;
 var hdLeft = 0, hdTop = 0, hdScale = 1.0;
 var hdRotX = 0, hdRotY = 0;
 var hdDragging = false, hdDragStartX = 0, hdDragStartY = 0, hdDragStartLeft = 0, hdDragStartTop = 0;
@@ -2849,7 +2849,6 @@ function initHeldDevice() {
   heldDeviceRenderer.setClearColor(0x000000, 0);
   heldDeviceScene = new THREE.Scene();
   heldDeviceWrap = document.getElementById('held-device-wrap');
-  heldDeviceBBox = new THREE.Box3();
   heldDeviceVTemp = new THREE.Vector3();
   heldDeviceCamera = new THREE.PerspectiveCamera(87, W / H, 0.01, 20);
   heldDeviceCamera.position.set(0.03, 0.24, 0.50);
@@ -5101,17 +5100,25 @@ if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
   heldDeviceMesh.rotation.z = -0.02 + Math.cos(now * 0.00055) * 0.010;
   heldDeviceMesh.position.y = -0.07 + Math.sin(now * 0.00095) * 0.005;
   heldDeviceRenderer.render(heldDeviceScene, heldDeviceCamera);
-  // Clip wrap to just above topmost visible pixel — removes dead space, unblocks input
-  if (heldDeviceBBox && heldDeviceWrap) {
-    heldDeviceBBox.setFromObject(heldDeviceMesh);
-    var _mn = heldDeviceBBox.min, _mx = heldDeviceBBox.max;
+  // Clip wrap to just above the topmost visible pixel — removes dead space, unblocks input.
+  // Project each sub-mesh's true geometry corners (not the inflated world-space AABB,
+  // whose far corners project way above the actual silhouette under perspective).
+  if (heldDeviceWrap) {
     var _topNDC = -1.0;
-    for (var _c = 0; _c < 8; _c++) {
-      heldDeviceVTemp.set((_c&1)?_mx.x:_mn.x, (_c&2)?_mx.y:_mn.y, (_c&4)?_mx.z:_mn.z)
-        .project(heldDeviceCamera);
-      if (heldDeviceVTemp.z < 1.0) _topNDC = Math.max(_topNDC, heldDeviceVTemp.y);
-    }
-    heldDeviceWrap.style.clipPath = 'inset(' + Math.max(0, Math.floor((1 - _topNDC) * 350) - 10) + 'px 0 0 0)';
+    heldDeviceMesh.updateMatrixWorld(true);
+    heldDeviceMesh.traverse(function(_o) {
+      if (!_o.isMesh || !_o.geometry) return;
+      var _g = _o.geometry;
+      if (!_g.boundingBox) _g.computeBoundingBox();
+      var _bb = _g.boundingBox;
+      for (var _c = 0; _c < 8; _c++) {
+        heldDeviceVTemp.set((_c&1)?_bb.max.x:_bb.min.x, (_c&2)?_bb.max.y:_bb.min.y, (_c&4)?_bb.max.z:_bb.min.z);
+        _o.localToWorld(heldDeviceVTemp);
+        heldDeviceVTemp.project(heldDeviceCamera);
+        if (heldDeviceVTemp.z < 1.0) _topNDC = Math.max(_topNDC, heldDeviceVTemp.y);
+      }
+    });
+    heldDeviceWrap.style.clipPath = 'inset(' + Math.max(0, Math.floor((1 - _topNDC) * 350) - 12) + 'px 0 0 0)';
   }
 }
 

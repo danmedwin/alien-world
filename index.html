@@ -503,6 +503,43 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   line-height:1.4;
 }
 #device-reset-btn:hover { background:rgba(40,12,80,0.9); color:rgba(255,190,70,0.9); }
+#held-locator-wrap {
+  display:none;
+  position:absolute;
+  width:360px;
+  height:640px;
+  pointer-events:auto;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  cursor:grab;
+  transform-origin:top left;
+  z-index:7;
+}
+#held-locator-wrap:active { cursor:grabbing; }
+#held-locator-canvas {
+  position:absolute;
+  top:0; left:0;
+  width:100%; height:100%;
+  pointer-events:none;
+}
+#locator-reset-btn {
+  position:absolute;
+  top:120px; right:8px;
+  z-index:8;
+  background:rgba(6,40,26,0.7);
+  border:1px solid rgba(70,220,140,0.30);
+  color:rgba(120,255,180,0.6);
+  font-size:11px;
+  padding:3px 7px;
+  cursor:pointer;
+  border-radius:3px;
+  font-family:monospace;
+  letter-spacing:0.06em;
+  pointer-events:auto;
+  line-height:1.4;
+}
+#locator-reset-btn:hover { background:rgba(12,60,38,0.9); color:rgba(150,255,200,0.9); }
 #scan-card-text {
   flex:1;
   min-width:130px;
@@ -703,7 +740,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.24</div>
+<div id="version-tag">v7.25</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -754,6 +791,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   </div>
 </div>
 <div id="held-device-wrap"><canvas id="held-device-canvas"></canvas><button id="device-reset-btn" title="Reset position &amp; size">↺</button></div>
+<div id="held-locator-wrap"><canvas id="held-locator-canvas"></canvas><button id="locator-reset-btn" title="Reset position &amp; size">↺</button></div>
 
 <div id="waypoint-panel">
   <div id="waypoint-panel-header">LOCATIONS</div>
@@ -2058,40 +2096,42 @@ var locatorItem = {
       return;
     }
     if (this.active) {
-      if (Date.now() - locatorSettleTime > 1800) {
-        // Settled — deactivate
-        this.active = false;
-        locatorActive = false;
-        arrowGroup.visible = false;
-        activeWaypointIdx = -1;
-        showPickupNotification('Locator off');
-        return;
-      }
-      // Still cycling — advance to next, wrap around
-      activeWaypointIdx = (activeWaypointIdx + 1) % waypoints.length;
-      var wp = waypoints[activeWaypointIdx];
-      arrowMat.color.set(wp.color);
-      arrowMat2.color.set(wp.color);
-      showPickupNotification('Tracking: ' + wp.name);
+      // Stow the held locator device
+      this.active = false;
+      locatorDeviceActive = false;
+      locatorActive = false;
+      if (arrowGroup) arrowGroup.visible = false;
+      var lwOff = document.getElementById('held-locator-wrap');
+      if (lwOff) lwOff.style.display = 'none';
+      showPickupNotification('Locator stowed');
     } else {
-      // Activate — start with first waypoint (or last active)
+      // Bring up the held locator device — select a target by tapping the list
       this.active = true;
-      if (activeWaypointIdx < 0 || activeWaypointIdx >= waypoints.length) {
-        activeWaypointIdx = 0;
+      locatorDeviceActive = true;
+      if (!heldLocRenderer) initHeldLocator();
+      var lwOn = document.getElementById('held-locator-wrap');
+      if (lwOn) lwOn.style.display = 'block';
+      if (activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) {
+        // Resume tracking the previously active location
+        locatorActive = true;
+        if (arrowGroup) arrowGroup.visible = true;
+        var wp = waypoints[activeWaypointIdx];
+        arrowMat.color.set(wp.color);
+        arrowMat2.color.set(wp.color);
+        showPickupNotification('Tracking: ' + wp.name);
+      } else {
+        showPickupNotification('Locator ready — tap a location');
       }
-      locatorActive = true;
-      arrowGroup.visible = true;
-      var wp2 = waypoints[activeWaypointIdx];
-      arrowMat.color.set(wp2.color);
-      arrowMat2.color.set(wp2.color);
-      showPickupNotification('Tracking: ' + wp2.name);
     }
     locatorSettleTime = Date.now();
   },
   onDeactivate: function() {
     this.active = false;
+    locatorDeviceActive = false;
     locatorActive = false;
-    arrowGroup.visible = false;
+    if (arrowGroup) arrowGroup.visible = false;
+    var lwDe = document.getElementById('held-locator-wrap');
+    if (lwDe) lwDe.style.display = 'none';
   }
 };
 
@@ -2645,6 +2685,19 @@ var hdRotating = false, hdRotStartX = 0, hdRotStartY = 0, hdRotStartRotX = 0, hd
 var hdPinching = false, hdPinchDist0 = 0, hdPinchScale0 = 0, hdPinchLeft0 = 0, hdPinchTop0 = 0, hdPinchMidX = 0, hdPinchMidY = 0;
 var hdLastTap = 0, hdInteractionInit = false;
 
+// ── Held Locator device (uses the elongated fob model + locations screen) ──
+var locatorDeviceActive = false;
+var heldLocRenderer = null, heldLocScene = null, heldLocCamera = null, heldLocMesh = null;
+var heldLocScreenCanvas = null, heldLocScrCtx = null, heldLocScreenTexture = null;
+var heldLocScreenMesh = null, heldLocLens = null, heldLocChevron = null, heldLocChevronPivot = null;
+var heldLocVTemp = null, heldLocWrap = null;
+var locLeft = 0, locTop = 0, locScale = 1.0;
+var locDragging = false, locDragStartX = 0, locDragStartY = 0, locDragStartLeft = 0, locDragStartTop = 0;
+var locPinching = false, locPinchDist0 = 0, locPinchScale0 = 0, locPinchLeft0 = 0, locPinchTop0 = 0, locPinchMidX = 0, locPinchMidY = 0;
+var locDownX = 0, locDownY = 0, locDownTime = 0, locMoved = false;
+var locLastTap = 0, locInteractionInit = false;
+var locRowRects = []; // [{y0,y1,idx}] in screen-canvas px, for tap hit-testing
+
 // Cast rays in a small spread pattern around center
 var scanOffsets = [
   [0, 0],
@@ -2951,6 +3004,252 @@ function initHeldDevice() {
   heldDeviceScene.add(body);
   heldDeviceMesh = body;
   initDeviceInteraction();
+}
+
+// ── Held Locator device ────────────────────────────────────────────────────
+// Elongated fob model with a locations-list screen on the lower front face.
+function initHeldLocator() {
+  var canvas = document.getElementById('held-locator-canvas');
+  if (!canvas || heldLocRenderer) return;
+  var W = 360, H = 640;
+  heldLocRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  heldLocRenderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
+  heldLocRenderer.setSize(W, H, false);
+  heldLocRenderer.setClearColor(0x000000, 0);
+  heldLocScene = new THREE.Scene();
+  heldLocWrap = document.getElementById('held-locator-wrap');
+  heldLocVTemp = new THREE.Vector3();
+  heldLocCamera = new THREE.PerspectiveCamera(46, W / H, 0.01, 20);
+  heldLocCamera.position.set(0, 0.54, 1.62);
+  heldLocCamera.lookAt(0, 0.46, 0);
+  var amb = new THREE.AmbientLight(0x405060, 0.7); heldLocScene.add(amb);
+  var keyL = new THREE.DirectionalLight(0xfff0e0, 1.05); keyL.position.set(-1, 2.2, 2); heldLocScene.add(keyL);
+  var fillL = new THREE.DirectionalLight(0x4466aa, 0.4); fillL.position.set(1.5, -0.5, -1.5); heldLocScene.add(fillL);
+  var glowL = new THREE.PointLight(0x44ff88, 0.6, 1.8); glowL.position.set(0, 0.5, 0.6); heldLocScene.add(glowL);
+
+  // Screen texture (locations list)
+  heldLocScreenCanvas = document.createElement('canvas');
+  heldLocScreenCanvas.width = 512;
+  heldLocScreenCanvas.height = 640;
+  heldLocScrCtx = heldLocScreenCanvas.getContext('2d');
+  heldLocScreenTexture = new THREE.CanvasTexture(heldLocScreenCanvas);
+
+  var bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color('#303030') });
+  var metalMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.55, 0.55, 0.6) });
+  var accentMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.92 });
+  var antMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.08, 0.08, 0.1) });
+  var scrMat = new THREE.MeshLambertMaterial({ map: heldLocScreenTexture, emissive: new THREE.Color(0.0, 0.10, 0.05), emissiveIntensity: 0.85 });
+
+  var g = new THREE.Group();
+  // Elongated body + frame
+  var body = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.62, 0.12), bodyMat); body.position.y = 0.31; g.add(body);
+  var topCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), metalMat); topCap.position.y = 0.65; g.add(topCap);
+  var botCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), metalMat); botCap.position.y = -0.03; g.add(botCap);
+  var railL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.62, 0.13), metalMat); railL.position.set(-0.16, 0.31, 0); g.add(railL);
+  var railR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.62, 0.13), metalMat); railR.position.set(0.16, 0.31, 0); g.add(railR);
+  // Lens (upper)
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.013, 8, 18), metalMat); ring.position.set(0, 0.50, 0.06); g.add(ring);
+  heldLocLens = new THREE.Mesh(new THREE.SphereGeometry(0.046, 14, 12), accentMat); heldLocLens.position.set(0, 0.50, 0.062); g.add(heldLocLens);
+  // Chevron orbiting the lens (direction indicator) — pivots about the lens center
+  heldLocChevronPivot = new THREE.Group(); heldLocChevronPivot.position.set(0, 0.50, 0.066); g.add(heldLocChevronPivot);
+  heldLocChevron = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.038, 3), new THREE.MeshBasicMaterial({ color: 0xbfffd9 }));
+  heldLocChevron.position.set(0, 0.078, 0); // sits just outside the ring, pointing outward (+y)
+  heldLocChevronPivot.add(heldLocChevron);
+  heldLocChevronPivot.visible = false;
+  // Locations screen (lower front face)
+  heldLocScreenMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.30, 0.008), scrMat);
+  heldLocScreenMesh.position.set(0, 0.22, 0.061); g.add(heldLocScreenMesh);
+  // Antenna + ball
+  var ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25, 8), antMat); ant.position.set(0, 0.78, 0); g.add(ant);
+  var ball = new THREE.Mesh(new THREE.SphereGeometry(0.0345, 10, 10), bodyMat); ball.position.set(0, 0.93, 0); g.add(ball);
+
+  heldLocScene.add(g);
+  heldLocMesh = g;
+  initLocatorInteraction();
+}
+
+function locFillEllipsis(ctx, text, x, y, maxW) {
+  if (ctx.measureText(text).width <= maxW) { ctx.fillText(text, x, y); return; }
+  var t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  ctx.fillText(t + '…', x, y);
+}
+
+function drawHeldLocatorScreen() {
+  if (!heldLocScrCtx) return;
+  var ctx = heldLocScrCtx, w = heldLocScreenCanvas.width, h = heldLocScreenCanvas.height;
+  locRowRects = [];
+  // Background
+  ctx.fillStyle = 'rgba(3,12,8,0.95)'; ctx.fillRect(0, 0, w, h);
+  for (var sy = 0; sy < h; sy += 4) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; ctx.fillRect(0, sy, w, 2); }
+  ctx.strokeStyle = 'rgba(70,220,140,0.5)'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, w - 6, h - 6);
+  ctx.textBaseline = 'top';
+  // Header
+  ctx.fillStyle = 'rgba(120,255,180,0.85)'; ctx.font = 'bold 26px monospace';
+  ctx.fillText('◉ LOCATIONS', 18, 16);
+  ctx.strokeStyle = 'rgba(70,220,140,0.25)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(18, 52); ctx.lineTo(w - 18, 52); ctx.stroke();
+  // List rows
+  var rowH = 62, y0 = 64, pad = 16;
+  for (var i = 0; i < waypoints.length; i++) {
+    var wp = waypoints[i];
+    var ry = y0 + i * rowH;
+    if (ry + rowH > h - 10) break; // clip overflow (paging handled in 2b if needed)
+    var active = (locatorDeviceActive && i === activeWaypointIdx);
+    if (active) { ctx.fillStyle = 'rgba(70,220,140,0.16)'; ctx.fillRect(8, ry, w - 16, rowH - 6); }
+    // color dot
+    ctx.fillStyle = wp.color; ctx.beginPath(); ctx.arc(pad + 12, ry + 22, 9, 0, Math.PI * 2); ctx.fill();
+    // name
+    ctx.fillStyle = active ? 'rgba(180,255,210,0.98)' : 'rgba(200,230,215,0.9)';
+    ctx.font = (active ? 'bold ' : '') + '24px monospace';
+    locFillEllipsis(ctx, wp.name, pad + 34, ry + 8, w - (pad + 34) - 120);
+    // distance
+    var dx = camera.position.x - wp.x, dz = camera.position.z - wp.z;
+    var dist = Math.round(Math.sqrt(dx * dx + dz * dz));
+    ctx.fillStyle = 'rgba(110,220,160,0.75)'; ctx.font = '20px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(dist + 'm', w - pad, ry + 12); ctx.textAlign = 'left';
+    // subtle separator
+    ctx.strokeStyle = 'rgba(70,220,140,0.12)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, ry + rowH - 4); ctx.lineTo(w - pad, ry + rowH - 4); ctx.stroke();
+    locRowRects.push({ y0: ry, y1: ry + rowH - 6, idx: i });
+  }
+  heldLocScreenTexture.needsUpdate = true;
+}
+
+// Select a waypoint as the active tracking target (from a screen tap)
+function locSelectWaypoint(idx) {
+  if (idx < 0 || idx >= waypoints.length) return;
+  activeWaypointIdx = idx;
+  locatorActive = true;
+  if (arrowGroup) arrowGroup.visible = true;
+  var wp = waypoints[idx];
+  if (typeof arrowMat !== 'undefined' && arrowMat) arrowMat.color.set(wp.color);
+  if (typeof arrowMat2 !== 'undefined' && arrowMat2) arrowMat2.color.set(wp.color);
+  showPickupNotification('Tracking: ' + wp.name);
+  locatorSettleTime = Date.now();
+}
+
+// Raycast a tap (client coords) onto the screen mesh → list row → select
+var locRaycaster = null, locNdc = null;
+function locTapAt(clientX, clientY) {
+  if (!heldLocScreenMesh || !heldLocCamera) return;
+  if (!locRaycaster) { locRaycaster = new THREE.Raycaster(); locNdc = new THREE.Vector2(); }
+  var canvas = document.getElementById('held-locator-canvas');
+  var r = canvas.getBoundingClientRect();
+  locNdc.x = ((clientX - r.left) / r.width) * 2 - 1;
+  locNdc.y = -((clientY - r.top) / r.height) * 2 + 1;
+  locRaycaster.setFromCamera(locNdc, heldLocCamera);
+  var hits = locRaycaster.intersectObject(heldLocScreenMesh, false);
+  if (!hits.length || !hits[0].uv) return;
+  // UV (0,0)=bottom-left → canvas px from top
+  var pxY = (1 - hits[0].uv.y) * heldLocScreenCanvas.height;
+  for (var i = 0; i < locRowRects.length; i++) {
+    if (pxY >= locRowRects[i].y0 && pxY <= locRowRects[i].y1) { locSelectWaypoint(locRowRects[i].idx); return; }
+  }
+}
+
+function locDefaultPos() {
+  return { left: window.innerWidth - 360, top: window.innerHeight - 470, scale: 1.0 };
+}
+function locClamp(l, t, sc) {
+  var margin = 60;
+  sc = Math.max(0.4, Math.min(2.5, sc));
+  l = Math.max(-360 * sc + margin, Math.min(window.innerWidth - margin, l));
+  t = Math.max(-640 * sc + margin, Math.min(window.innerHeight - margin, t));
+  return { left: l, top: t, scale: sc };
+}
+function locApply() {
+  if (!heldLocWrap) return;
+  heldLocWrap.style.left = Math.round(locLeft) + 'px';
+  heldLocWrap.style.top = Math.round(locTop) + 'px';
+  heldLocWrap.style.transform = 'scale(' + locScale + ')';
+}
+function locSave() { try { localStorage.setItem('kpx_loc', JSON.stringify({ l: locLeft, t: locTop, s: locScale })); } catch (e) {} }
+function locLoad() {
+  try {
+    var raw = localStorage.getItem('kpx_loc');
+    if (raw) { var d = JSON.parse(raw); locLeft = d.l; locTop = d.t; locScale = d.s; return; }
+  } catch (e) {}
+  var def = locDefaultPos(); locLeft = def.left; locTop = def.top; locScale = def.scale;
+}
+function locReset() { var def = locDefaultPos(); locLeft = def.left; locTop = def.top; locScale = def.scale; locApply(); locSave(); }
+function initLocatorInteraction() {
+  if (locInteractionInit) return;
+  locInteractionInit = true;
+  var hw = document.getElementById('held-locator-wrap');
+  if (!hw) return;
+  locLoad(); locApply();
+  var rb = document.getElementById('locator-reset-btn');
+  if (rb) rb.addEventListener('click', function (e) { e.stopPropagation(); locReset(); });
+
+  // Touch: 1 finger = drag (or tap-to-select) │ 2 fingers = pinch scale
+  hw.addEventListener('touchstart', function (e) {
+    e.stopPropagation();
+    if (e.touches.length === 1) {
+      locDragging = true; locPinching = false;
+      locDownX = locDragStartX = e.touches[0].clientX; locDownY = locDragStartY = e.touches[0].clientY;
+      locDragStartLeft = locLeft; locDragStartTop = locTop; locMoved = false; locDownTime = Date.now();
+      var nt = Date.now(); if (nt - locLastTap < 300) { locReset(); } locLastTap = nt;
+    } else if (e.touches.length >= 2) {
+      locDragging = false; locPinching = true;
+      var t1 = e.touches[0], t2 = e.touches[1];
+      locPinchDist0 = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      locPinchScale0 = locScale; locPinchLeft0 = locLeft; locPinchTop0 = locTop;
+      locPinchMidX = (t1.clientX + t2.clientX) * 0.5; locPinchMidY = (t1.clientY + t2.clientY) * 0.5;
+    }
+  }, { passive: false });
+  hw.addEventListener('touchmove', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    if (locDragging && e.touches.length === 1) {
+      var dx = e.touches[0].clientX - locDragStartX, dy = e.touches[0].clientY - locDragStartY;
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) locMoved = true;
+      var c = locClamp(locDragStartLeft + dx, locDragStartTop + dy, locScale);
+      locLeft = c.left; locTop = c.top; locApply();
+    } else if (locPinching && e.touches.length >= 2) {
+      var t1 = e.touches[0], t2 = e.touches[1];
+      var dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      var ns = Math.max(0.4, Math.min(2.5, locPinchScale0 * dist / locPinchDist0));
+      var ratio = ns / locPinchScale0;
+      var c = locClamp(locPinchMidX + (locPinchLeft0 - locPinchMidX) * ratio,
+                       locPinchMidY + (locPinchTop0 - locPinchMidY) * ratio, ns);
+      locLeft = c.left; locTop = c.top; locScale = c.scale; locApply();
+    }
+  }, { passive: false });
+  hw.addEventListener('touchend', function (e) {
+    e.stopPropagation();
+    if (e.touches.length === 0) {
+      if (locDragging && !locMoved && Date.now() - locDownTime < 400) locTapAt(locDownX, locDownY);
+      locDragging = false; locPinching = false; locSave();
+    }
+  }, { passive: false });
+
+  // Mouse: drag = move │ click (no move) = tap-select │ wheel = scale │ dblclick = reset
+  hw.addEventListener('mousedown', function (e) {
+    e.stopPropagation();
+    locDragging = true; locDownX = locDragStartX = e.clientX; locDownY = locDragStartY = e.clientY;
+    locDragStartLeft = locLeft; locDragStartTop = locTop; locMoved = false; locDownTime = Date.now();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!locDragging) return;
+    var dx = e.clientX - locDragStartX, dy = e.clientY - locDragStartY;
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) locMoved = true;
+    var c = locClamp(locDragStartLeft + dx, locDragStartTop + dy, locScale);
+    locLeft = c.left; locTop = c.top; locApply();
+  });
+  document.addEventListener('mouseup', function (e) {
+    if (!locDragging) return;
+    if (!locMoved && Date.now() - locDownTime < 400) locTapAt(locDownX, locDownY);
+    locDragging = false; locSave();
+  });
+  hw.addEventListener('wheel', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    var ns = Math.max(0.4, Math.min(2.5, locScale * (e.deltaY < 0 ? 1.1 : 0.909)));
+    var ratio = ns / locScale;
+    var c = locClamp(e.clientX + (locLeft - e.clientX) * ratio, e.clientY + (locTop - e.clientY) * ratio, ns);
+    locLeft = c.left; locTop = c.top; locScale = c.scale; locApply(); locSave();
+  }, { passive: false });
+  hw.addEventListener('dblclick', function (e) { e.stopPropagation(); locReset(); });
+  hw.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 }
 
 function hdFillWrapped(ctx, text, x, y, maxW, lineH) {
@@ -5160,6 +5459,40 @@ if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
     });
     heldDeviceWrap.style.clipPath = 'inset(' + Math.max(0, Math.floor((1 - _topNDC) * 350) - 12) + 'px 0 0 0)';
   }
+}
+
+// Held locator device (elongated fob + locations screen)
+if (locatorDeviceActive && heldLocRenderer && heldLocMesh) {
+  drawHeldLocatorScreen();
+  // Gentle idle bob
+  heldLocMesh.rotation.y = Math.sin(now * 0.0006) * 0.05;
+  heldLocMesh.position.y = Math.sin(now * 0.0009) * 0.006;
+  // Direction chevron orbiting the lens + proximity pulse on the green sphere
+  var locTracking = (locatorActive && activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length);
+  var locDist = 999;
+  if (locTracking) {
+    var lawp = waypoints[activeWaypointIdx];
+    var ldx = lawp.x - camera.position.x, ldz = lawp.z - camera.position.z;
+    locDist = Math.sqrt(ldx * ldx + ldz * ldz);
+    if (heldLocChevronPivot) {
+      heldLocChevronPivot.visible = true;
+      var lFwd = new THREE.Vector3(); camera.getWorldDirection(lFwd);
+      var bearing = Math.atan2(ldx, ldz);            // world bearing to target
+      var facing = Math.atan2(lFwd.x, lFwd.z);       // player facing
+      heldLocChevronPivot.rotation.z = -(bearing - facing); // 0 = target dead ahead → chevron up
+    }
+  } else if (heldLocChevronPivot) {
+    heldLocChevronPivot.visible = false;
+  }
+  if (heldLocLens) {
+    // Pulse faster as the player nears the active target
+    var prox = locTracking ? Math.max(0, 1 - Math.min(locDist, 300) / 300) : 0;
+    var pulseFreq = 0.0016 + prox * 0.013;
+    var pulseAmp = 0.10 + prox * 0.06;
+    var ps = 1 + Math.sin(now * pulseFreq) * pulseAmp;
+    heldLocLens.scale.setScalar(ps);
+  }
+  heldLocRenderer.render(heldLocScene, heldLocCamera);
 }
 
 // Render

@@ -90,6 +90,7 @@ button:hover { background: #103a26; }
     <div class="row"><label>Auto-spin</label><input type="checkbox" id="fb-autorot" checked></div>
     <div class="row"><label>Show beam</label><input type="checkbox" id="fb-beam" checked></div>
     <div class="row"><label>Show ground</label><input type="checkbox" id="fb-ground" checked></div>
+    <div class="row"><label>Bottom cap</label><input type="checkbox" id="fb-botcap" checked></div>
   </div>
 
   <div class="group">
@@ -162,16 +163,16 @@ const SLIDER_DEFS = [
 // Defaults map directly to the current in-game fob (index.html beaconGroup)
 const DEFAULTS = {
   bodyW:0.30, bodyH:0.35, bodyD:0.12, bodyY:0.175,
-  capW:0.32, capH:0.06, capD:0.13, capY:0.37,
+  capW:0.345, capH:0.06, capD:0.13, capY:0.37,
   railW:0.025, railX:0.16,
   lensR:0.045, lensTube:0.012, lensY:0.26, dotR:0.02,
   slotW:0.06, slotH:0.10, slotY:0.12,
   antTopR:0.015, antBotR:0.018, antH:0.25, antY:0.525,
-  ballR:0.04, ballY:0.67,
+  ballR:0.0345, ballY:0.67,
   scale:1.0, rotSpeed:0.45,
   fov:42, camDist:1.5, camY:0.5, lookY:0.33,
-  autoRot:true, showBeam:true, showGround:true,
-  bodyColor:'#0d0d12', metalColor:'#8c8c99', accentColor:'#44ff88',
+  autoRot:true, showBeam:true, showGround:true, bottomCap:true,
+  bodyColor:'#303030', metalColor:'#8c8c99', accentColor:'#44ff88',
 };
 
 const s = Object.assign({}, DEFAULTS);
@@ -261,6 +262,13 @@ function buildFob() {
   const cap = new THREE.Mesh(new THREE.BoxGeometry(s.capW, s.capH, s.capD), metalMat);
   cap.position.y = s.capY; g.add(cap);
 
+  // Silver bottom cap — mirrors the top cap for a full light-gray frame
+  if (s.bottomCap) {
+    const bcap = new THREE.Mesh(new THREE.BoxGeometry(s.capW, s.capH, s.capD), metalMat);
+    bcap.position.y = 2 * s.bodyY - s.capY;
+    g.add(bcap);
+  }
+
   // Silver side rails (wrap the body's side edges)
   if (s.railW > 0) {
     const railD = s.bodyD + 0.01;
@@ -314,7 +322,11 @@ function applyState() {
   buildFob();
   if (fobGroup) fobGroup.scale.setScalar(s.scale);
   if (beamGroup) { beamGroup.visible = s.showBeam; beamGroup.scale.setScalar(s.scale); }
-  if (groundMesh) groundMesh.visible = s.showGround;
+  if (groundMesh) {
+    groundMesh.visible = s.showGround;
+    const lowest = Math.min(s.bodyY - s.bodyH / 2, s.bottomCap ? (2 * s.bodyY - s.capY) - s.capH / 2 : 0);
+    groundMesh.position.y = lowest * s.scale + 0.001;
+  }
 
   // Camera + canvas
   const W = 560, H = 640;
@@ -342,7 +354,9 @@ accent: ${s.accentColor.replace('#','0x')}
 ${s.scale !== 1 ? '/* values below already include scale '+s.scale+' */\n' : ''}// Body
 BoxGeometry(${sv(s.bodyW)}, ${sv(s.bodyH)}, ${sv(s.bodyD)})  y=${sv(s.bodyY)}
 // Cap
-BoxGeometry(${sv(s.capW)}, ${sv(s.capH)}, ${sv(s.capD)})  y=${sv(s.capY)}
+BoxGeometry(${sv(s.capW)}, ${sv(s.capH)}, ${sv(s.capD)})  y=${sv(s.capY)}${s.bottomCap ? `
+// Bottom cap
+BoxGeometry(${sv(s.capW)}, ${sv(s.capH)}, ${sv(s.capD)})  y=${sv(2*s.bodyY - s.capY)}` : ''}
 // Rails (x = ±${sv(s.railX)})
 BoxGeometry(${sv(s.railW)}, ${sv(s.bodyH)}, ${sv(railD)})  y=${sv(s.bodyY)}
 // Lens ring
@@ -372,6 +386,7 @@ function resetDefaults() {
   document.getElementById('fb-autorot').checked = s.autoRot;
   document.getElementById('fb-beam').checked = s.showBeam;
   document.getElementById('fb-ground').checked = s.showGround;
+  document.getElementById('fb-botcap').checked = s.bottomCap;
   document.getElementById('col-body').value = s.bodyColor;
   document.getElementById('col-metal').value = s.metalColor;
   document.getElementById('col-accent').value = s.accentColor;
@@ -404,6 +419,7 @@ SLIDER_DEFS.forEach(({ id, key, min, max, dec }) => {
 document.getElementById('fb-autorot').addEventListener('change', e => { s.autoRot = e.target.checked; });
 document.getElementById('fb-beam').addEventListener('change', e => { s.showBeam = e.target.checked; applyState(); });
 document.getElementById('fb-ground').addEventListener('change', e => { s.showGround = e.target.checked; applyState(); });
+document.getElementById('fb-botcap').addEventListener('change', e => { s.bottomCap = e.target.checked; applyState(); });
 document.getElementById('col-body').addEventListener('input', e => { s.bodyColor = e.target.value; applyState(); });
 document.getElementById('col-metal').addEventListener('input', e => { s.metalColor = e.target.value; applyState(); });
 document.getElementById('col-accent').addEventListener('input', e => { s.accentColor = e.target.value; applyState(); });

@@ -703,7 +703,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.23</div>
+<div id="version-tag">v7.24</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2100,11 +2100,11 @@ var locatorItem = {
 const beaconGroup = new THREE.Group();
 const beaconX = -30, beaconZ = 52;
 const beaconTerrY = getHeight(beaconX, beaconZ);
-beaconGroup.position.set(beaconX, beaconTerrY, beaconZ);
+beaconGroup.position.set(beaconX, beaconTerrY + 0.05, beaconZ); // +0.05 so the bottom cap clears the ground
 beaconGroup.rotation.y = Math.atan2(-beaconX, -beaconZ); // face toward spawn (0,0)
 
 // Device body: Tracking fob (chunky black box with silver edges, red lens)
-const fobBlackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.05, 0.05, 0.07) });
+const fobBlackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color('#303030') });
 const fobSilverMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.55, 0.55, 0.6) });
 const fobRedMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.9 });
 // Main black body
@@ -2112,9 +2112,13 @@ const fobBody = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.12), fobBlackM
 fobBody.position.y = 0.175;
 beaconGroup.add(fobBody);
 // Silver top edge/cap
-const fobTopCap = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.13), fobSilverMat);
+const fobTopCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), fobSilverMat);
 fobTopCap.position.y = 0.37;
 beaconGroup.add(fobTopCap);
+// Silver bottom cap — mirrors the top cap for a full light-gray frame
+const fobBotCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), fobSilverMat);
+fobBotCap.position.y = -0.02;
+beaconGroup.add(fobBotCap);
 // Silver side rails (left and right edges)
 const fobRailL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSilverMat);
 fobRailL.position.set(-0.16, 0.175, 0);
@@ -2123,11 +2127,11 @@ const fobRailR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSil
 fobRailR.position.set(0.16, 0.175, 0);
 beaconGroup.add(fobRailR);
 // Red glowing lens (circle on front face, upper portion)
-const fobLensRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 16), fobSilverMat);
-fobLensRing.position.set(0, 0.26, 0.061);
+const fobLensRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 18), fobSilverMat);
+fobLensRing.position.set(0, 0.26, 0.06);
 beaconGroup.add(fobLensRing);
-const devTop = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), fobRedMat);
-devTop.position.set(0, 0.26, 0.065);
+const devTop = new THREE.Mesh(new THREE.SphereGeometry(0.0405, 10, 10), fobRedMat);
+devTop.position.set(0, 0.26, 0.06);
 beaconGroup.add(devTop);
 // Dark groove/slot below the lens
 const fobSlot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.01), new THREE.MeshBasicMaterial({ color: 0x111115 }));
@@ -2139,13 +2143,13 @@ const fobAntenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25,
 fobAntenna.position.set(0, 0.525, 0);
 beaconGroup.add(fobAntenna);
 // Ball at end of antenna
-const fobBall = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), fobBlackMat);
+const fobBall = new THREE.Mesh(new THREE.SphereGeometry(0.0345, 10, 10), fobBlackMat);
 fobBall.position.set(0, 0.67, 0);
 beaconGroup.add(fobBall);
 // Small green dot in center of front face
 const fobDotMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.7 });
 const fobDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), fobDotMat);
-fobDot.position.set(0, 0.175, 0.062);
+fobDot.position.set(0, 0.175, 0.06);
 beaconGroup.add(fobDot);
 // Dummy for animation loop reference
 const devRing = { rotation: { y: 0 } };

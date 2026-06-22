@@ -488,7 +488,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 }
 #device-reset-btn {
   position:absolute;
-  top:8px; right:8px;
+  top:140px; right:8px;
   z-index:8;
   background:rgba(20,6,45,0.7);
   border:1px solid rgba(255,170,50,0.28);
@@ -2633,6 +2633,7 @@ var previewRotY = 0;
 var heldDeviceRenderer = null, heldDeviceScene = null, heldDeviceCamera = null, heldDeviceMesh = null;
 var heldDeviceScreenCanvas = null, heldDeviceScrCtx = null, heldDeviceScreenTexture = null;
 var heldDeviceScanData = null;
+var heldDeviceBBox = null, heldDeviceVTemp = null, heldDeviceWrap = null;
 var hdLeft = 0, hdTop = 0, hdScale = 1.0;
 var hdRotX = 0, hdRotY = 0;
 var hdDragging = false, hdDragStartX = 0, hdDragStartY = 0, hdDragStartLeft = 0, hdDragStartTop = 0;
@@ -2847,6 +2848,9 @@ function initHeldDevice() {
   heldDeviceRenderer.setSize(W, H, false);
   heldDeviceRenderer.setClearColor(0x000000, 0);
   heldDeviceScene = new THREE.Scene();
+  heldDeviceWrap = document.getElementById('held-device-wrap');
+  heldDeviceBBox = new THREE.Box3();
+  heldDeviceVTemp = new THREE.Vector3();
   heldDeviceCamera = new THREE.PerspectiveCamera(87, W / H, 0.01, 20);
   heldDeviceCamera.position.set(0.03, 0.24, 0.50);
   heldDeviceCamera.lookAt(0, 0.16, 0);
@@ -5097,6 +5101,18 @@ if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
   heldDeviceMesh.rotation.z = -0.02 + Math.cos(now * 0.00055) * 0.010;
   heldDeviceMesh.position.y = -0.07 + Math.sin(now * 0.00095) * 0.005;
   heldDeviceRenderer.render(heldDeviceScene, heldDeviceCamera);
+  // Clip wrap to just above topmost visible pixel — removes dead space, unblocks input
+  if (heldDeviceBBox && heldDeviceWrap) {
+    heldDeviceBBox.setFromObject(heldDeviceMesh);
+    var _mn = heldDeviceBBox.min, _mx = heldDeviceBBox.max;
+    var _topNDC = -1.0;
+    for (var _c = 0; _c < 8; _c++) {
+      heldDeviceVTemp.set((_c&1)?_mx.x:_mn.x, (_c&2)?_mx.y:_mn.y, (_c&4)?_mx.z:_mn.z)
+        .project(heldDeviceCamera);
+      if (heldDeviceVTemp.z < 1.0) _topNDC = Math.max(_topNDC, heldDeviceVTemp.y);
+    }
+    heldDeviceWrap.style.clipPath = 'inset(' + Math.max(0, Math.floor((1 - _topNDC) * 350) - 10) + 'px 0 0 0)';
+  }
 }
 
 // Render

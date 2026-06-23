@@ -740,7 +740,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.29</div>
+<div id="version-tag">v7.30</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2472,10 +2472,12 @@ function onPuzzleSolved() {
 function spawnTricorder() {
   tricorderSpawned = true;
 
-  var tcBodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.4) });
+  // Subtle emissive keeps the scanner readable from any angle at night;
+  // the glow light below makes its aura actually illuminate it.
+  var tcBodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.45, 0.43, 0.4), emissive: new THREE.Color(0.05, 0.12, 0.08) });
   var tcBody = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.35, 0.08), tcBodyMat);
 
-  var tcFlipMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.4, 0.38) });
+  var tcFlipMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.42, 0.4, 0.38), emissive: new THREE.Color(0.04, 0.09, 0.07) });
   var tcFlip = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.06), tcFlipMat);
   tcFlip.position.set(0, 0.25, 0.03);
   tcFlip.rotation.x = 0.5;
@@ -2506,7 +2508,7 @@ function spawnTricorder() {
   tricorderMesh = tcBody;
 
   // Glow light (child of body so it moves and is removed with it)
-  tricorderGlowLight = new THREE.PointLight(0x44ff88, 0.8, 6);
+  tricorderGlowLight = new THREE.PointLight(0x66ff9e, 2.4, 6);
   tricorderGlowLight.position.set(0, 0.3, 0);
   tcBody.add(tricorderGlowLight);
 
@@ -5361,7 +5363,7 @@ if (tricorderSpawned && !tricorderPickedUp && tricorderMesh) {
   tricorderMesh.rotation.y += dt * 1.2;
   tricorderMesh.position.y = artifactTerrY + 3.5 + Math.sin(now * 0.001 * 1.5) * 0.2;
   if (tricorderGlowLight) {
-    tricorderGlowLight.intensity = 0.7 + Math.sin(now * 0.003) * 0.45;
+    tricorderGlowLight.intensity = 1.8 + Math.sin(now * 0.003) * 1.0;
   }
   if (tricorderParticleCloud) {
     tricorderParticleCloud.rotation.y -= dt * 0.7;

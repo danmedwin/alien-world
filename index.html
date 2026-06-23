@@ -740,7 +740,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.27</div>
+<div id="version-tag">v7.28</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2141,57 +2141,54 @@ var locatorItem = {
 const beaconGroup = new THREE.Group();
 const beaconX = -30, beaconZ = 52;
 const beaconTerrY = getHeight(beaconX, beaconZ);
-beaconGroup.position.set(beaconX, beaconTerrY + 0.05, beaconZ); // +0.05 so the bottom cap clears the ground
+beaconGroup.position.set(beaconX, beaconTerrY + 0.06, beaconZ); // +0.06 so the bottom cap clears the ground
 beaconGroup.rotation.y = Math.atan2(-beaconX, -beaconZ); // face toward spawn (0,0)
 
-// Device body: Tracking fob (chunky black box with silver edges, red lens)
+// Device body: Tracking fob — elongated locator, matches the held device
 const fobBlackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color('#303030') });
 const fobSilverMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.55, 0.55, 0.6) });
 const fobRedMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.9 });
-// Main black body
-const fobBody = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.12), fobBlackMat);
-fobBody.position.y = 0.175;
-beaconGroup.add(fobBody);
-// Silver top edge/cap
-const fobTopCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), fobSilverMat);
-fobTopCap.position.y = 0.37;
-beaconGroup.add(fobTopCap);
-// Silver bottom cap — mirrors the top cap for a full light-gray frame
-const fobBotCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), fobSilverMat);
-fobBotCap.position.y = -0.02;
-beaconGroup.add(fobBotCap);
-// Silver side rails (left and right edges)
-const fobRailL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSilverMat);
-fobRailL.position.set(-0.16, 0.175, 0);
-beaconGroup.add(fobRailL);
-const fobRailR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.35, 0.13), fobSilverMat);
-fobRailR.position.set(0.16, 0.175, 0);
-beaconGroup.add(fobRailR);
-// Red glowing lens (circle on front face, upper portion)
-const fobLensRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 8, 18), fobSilverMat);
-fobLensRing.position.set(0, 0.26, 0.06);
-beaconGroup.add(fobLensRing);
-const devTop = new THREE.Mesh(new THREE.SphereGeometry(0.0405, 10, 10), fobRedMat);
-devTop.position.set(0, 0.26, 0.06);
-beaconGroup.add(devTop);
-// Dark groove/slot below the lens
-const fobSlot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.01), new THREE.MeshBasicMaterial({ color: 0x111115 }));
-fobSlot.position.set(0, 0.12, 0.061);
-beaconGroup.add(fobSlot);
-// Antenna sticking up from top cap
 const fobAntennaMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.08, 0.08, 0.1) });
+// Static "screen" texture for the idle ground unit (same look as the held device)
+const fobScreenCanvas = document.createElement('canvas');
+fobScreenCanvas.width = 256; fobScreenCanvas.height = 307;
+(function() {
+  var c = fobScreenCanvas.getContext('2d'), w = fobScreenCanvas.width, h = fobScreenCanvas.height;
+  c.fillStyle = 'rgba(3,12,8,0.96)'; c.fillRect(0, 0, w, h);
+  for (var y = 0; y < h; y += 4) { c.fillStyle = 'rgba(0,0,0,0.08)'; c.fillRect(0, y, w, 2); }
+  c.strokeStyle = 'rgba(70,220,140,0.5)'; c.lineWidth = 4; c.strokeRect(2, 2, w - 4, h - 4);
+  c.fillStyle = 'rgba(120,255,180,0.8)'; c.font = 'bold 18px monospace'; c.textBaseline = 'top';
+  c.fillText('◉ LOCATOR', 12, 12);
+  c.strokeStyle = 'rgba(70,220,140,0.25)'; c.lineWidth = 1; c.beginPath(); c.moveTo(12, 38); c.lineTo(w - 12, 38); c.stroke();
+  c.fillStyle = 'rgba(110,220,160,0.5)'; c.font = '13px monospace';
+  c.fillText('· awaiting pickup', 14, 54);
+})();
+const fobScreenTex = new THREE.CanvasTexture(fobScreenCanvas);
+const fobScreenMat = new THREE.MeshLambertMaterial({ map: fobScreenTex, emissive: new THREE.Color(0.0, 0.10, 0.05), emissiveIntensity: 0.85 });
+// Elongated body + silver frame
+const fobBody = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.62, 0.12), fobBlackMat);
+fobBody.position.y = 0.31; beaconGroup.add(fobBody);
+const fobTopCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), fobSilverMat);
+fobTopCap.position.y = 0.65; beaconGroup.add(fobTopCap);
+const fobBotCap = new THREE.Mesh(new THREE.BoxGeometry(0.345, 0.06, 0.13), fobSilverMat);
+fobBotCap.position.y = -0.03; beaconGroup.add(fobBotCap);
+const fobRailL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.62, 0.13), fobSilverMat);
+fobRailL.position.set(-0.16, 0.31, 0); beaconGroup.add(fobRailL);
+const fobRailR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.62, 0.13), fobSilverMat);
+fobRailR.position.set(0.16, 0.31, 0); beaconGroup.add(fobRailR);
+// Lens (upper) — devTop pulses in the animation loop
+const fobLensRing = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.013, 8, 18), fobSilverMat);
+fobLensRing.position.set(0, 0.50, 0.06); beaconGroup.add(fobLensRing);
+const devTop = new THREE.Mesh(new THREE.SphereGeometry(0.046, 14, 12), fobRedMat);
+devTop.position.set(0, 0.50, 0.062); beaconGroup.add(devTop);
+// Locations screen (lower front)
+const fobScreen = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.30, 0.008), fobScreenMat);
+fobScreen.position.set(0, 0.22, 0.061); beaconGroup.add(fobScreen);
+// Antenna + ball
 const fobAntenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25, 8), fobAntennaMat);
-fobAntenna.position.set(0, 0.525, 0);
-beaconGroup.add(fobAntenna);
-// Ball at end of antenna
+fobAntenna.position.set(0, 0.78, 0); beaconGroup.add(fobAntenna);
 const fobBall = new THREE.Mesh(new THREE.SphereGeometry(0.0345, 10, 10), fobBlackMat);
-fobBall.position.set(0, 0.67, 0);
-beaconGroup.add(fobBall);
-// Small green dot in center of front face
-const fobDotMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.7 });
-const fobDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), fobDotMat);
-fobDot.position.set(0, 0.175, 0.06);
-beaconGroup.add(fobDot);
+fobBall.position.set(0, 0.93, 0); beaconGroup.add(fobBall);
 // Dummy for animation loop reference
 const devRing = { rotation: { y: 0 } };
 scene.add(beaconGroup);
@@ -5292,9 +5289,13 @@ if (!beaconPickedUp) {
     scene.remove(beaconBeamGroup);
     beaconPillarParticles = null;
     addToInventory(locatorItem);
+    // First pickup auto-tracks the Ancient Signal
+    var _asIdx = -1;
+    for (var _wi = 0; _wi < waypoints.length; _wi++) { if (waypoints[_wi].name === 'Ancient Signal') { _asIdx = _wi; break; } }
+    if (_asIdx >= 0) activeWaypointIdx = _asIdx;
     var _lSlot = inventory.indexOf(locatorItem);
     if (_lSlot >= 0) {
-      selectSlot(_lSlot); // auto-activates via autoActivate flag
+      selectSlot(_lSlot); // auto-activates via autoActivate flag (resumes tracking activeWaypointIdx)
       var _lN = _lSlot + 1;
       setTimeout(function() { showPickupNotification(MOBILE ? 'Tap slot ' + _lN + ' to deactivate' : 'Press ' + _lN + ' to deactivate'); }, 1500);
     }
@@ -5570,6 +5571,8 @@ if (locatorDeviceActive && heldLocRenderer && heldLocMesh) {
     heldLocChevronPivot.visible = false;
   }
   if (heldLocLens) {
+    // Lens color matches the tracked pin/arrow (default green when idle)
+    heldLocLens.material.color.set(locTracking ? waypoints[activeWaypointIdx].color : '#44ff88');
     // Pulse rate (not size) rises as the player nears the active target.
     // Phase is accumulated so a changing rate never makes the pulse jump.
     var prox = locTracking ? Math.max(0, 1 - Math.min(locDist, 300) / 300) : 0;
@@ -5580,6 +5583,31 @@ if (locatorDeviceActive && heldLocRenderer && heldLocMesh) {
     heldLocLens.scale.setScalar(1 + Math.sin(heldLocPulsePhase) * 0.12);
   }
   heldLocRenderer.render(heldLocScene, heldLocCamera);
+  // Hug the wrap to the device's projected bounds so the empty canvas
+  // around it doesn't block look-around / taps (project real corners).
+  if (heldLocWrap) {
+    var lW = 360, lH = 640, lm = 10;
+    var lminX = 1e9, lmaxX = -1e9, lminY = 1e9, lmaxY = -1e9, lany = false;
+    heldLocMesh.updateMatrixWorld(true);
+    heldLocMesh.traverse(function(o) {
+      if (!o.isMesh || !o.geometry) return;
+      var g = o.geometry; if (!g.boundingBox) g.computeBoundingBox(); var bb = g.boundingBox;
+      for (var c = 0; c < 8; c++) {
+        heldLocVTemp.set((c&1)?bb.max.x:bb.min.x, (c&2)?bb.max.y:bb.min.y, (c&4)?bb.max.z:bb.min.z);
+        o.localToWorld(heldLocVTemp); heldLocVTemp.project(heldLocCamera);
+        if (heldLocVTemp.z < 1.0) {
+          var sx = (heldLocVTemp.x * 0.5 + 0.5) * lW, sy = (0.5 - heldLocVTemp.y * 0.5) * lH;
+          if (sx < lminX) lminX = sx; if (sx > lmaxX) lmaxX = sx;
+          if (sy < lminY) lminY = sy; if (sy > lmaxY) lmaxY = sy; lany = true;
+        }
+      }
+    });
+    if (lany) {
+      var lt = Math.max(0, Math.floor(lminY - lm)), ll = Math.max(0, Math.floor(lminX - lm));
+      var lr = Math.max(0, Math.floor(lW - lmaxX - lm)), lb = Math.max(0, Math.floor(lH - lmaxY - lm));
+      heldLocWrap.style.clipPath = 'inset(' + lt + 'px ' + lr + 'px ' + lb + 'px ' + ll + 'px)';
+    }
+  }
 }
 
 // Render

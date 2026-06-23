@@ -764,7 +764,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.39</div>
+<div id="version-tag">v7.40</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -1807,10 +1807,12 @@ function updateHotbarUI() {
     // Locator gets a box style + color matching active waypoint
     icon.classList.toggle('locator-icon', !!(item && item.name === 'Locator'));
     if (item && item.name === 'Locator') {
-      if (item.active && activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) {
-        icon.style.color = waypoints[activeWaypointIdx].color;
+      if (!item.active) {
+        icon.style.color = 'rgba(200,170,255,0.5)'; // stowed
+      } else if (locatorActive && activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) {
+        icon.style.color = waypoints[activeWaypointIdx].color; // matches the lens / arrow
       } else {
-        icon.style.color = 'rgba(200,170,255,0.5)';
+        icon.style.color = '#44ff88'; // active but idle — matches the green lens
       }
     } else if (item) {
       icon.style.color = '';
@@ -3253,6 +3255,7 @@ function locSetPinColor(ci) {
   waypoints[locEditPinIdx].color = pinColors[ci];
   if (activeWaypointIdx === locEditPinIdx && arrowMat) { arrowMat.color.set(pinColors[ci]); arrowMat2.color.set(pinColors[ci]); }
   locScreenDirty = true;
+  if (activeWaypointIdx === locEditPinIdx) updateHotbarUI(); // tracked pin recolored
 }
 function locDeletePin() {
   var i = locEditPinIdx;
@@ -3262,6 +3265,7 @@ function locDeletePin() {
   else if (activeWaypointIdx > i) { activeWaypointIdx--; }
   showPickupNotification('Pin deleted');
   locExitEdit();
+  updateHotbarUI(); // tracked pin may have changed
 }
 var locNameInput = null;
 function locStartNameEdit() {
@@ -3292,6 +3296,7 @@ function locSelectWaypoint(idx) {
   showPickupNotification('Tracking: ' + wp.name);
   locatorSettleTime = Date.now();
   locScreenDirty = true;
+  updateHotbarUI(); // refresh the locator icon to the tracked color
 }
 
 // Raycast a tap (client coords) onto the screen mesh → list row → select

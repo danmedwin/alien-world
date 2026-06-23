@@ -740,7 +740,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.28</div>
+<div id="version-tag">v7.29</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2145,8 +2145,10 @@ beaconGroup.position.set(beaconX, beaconTerrY + 0.06, beaconZ); // +0.06 so the 
 beaconGroup.rotation.y = Math.atan2(-beaconX, -beaconZ); // face toward spawn (0,0)
 
 // Device body: Tracking fob — elongated locator, matches the held device
-const fobBlackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color('#303030') });
-const fobSilverMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.55, 0.55, 0.6) });
+// Subtle emissive keeps it readable from any angle in the dark; a point light
+// (added below) makes the beacon's glow actually illuminate it.
+const fobBlackMat = new THREE.MeshLambertMaterial({ color: new THREE.Color('#303030'), emissive: new THREE.Color(0.05, 0.12, 0.08) });
+const fobSilverMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.55, 0.55, 0.6), emissive: new THREE.Color(0.04, 0.09, 0.07) });
 const fobRedMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.9 });
 const fobAntennaMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.08, 0.08, 0.1) });
 // Static "screen" texture for the idle ground unit (same look as the held device)
@@ -2189,6 +2191,9 @@ const fobAntenna = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.25,
 fobAntenna.position.set(0, 0.78, 0); beaconGroup.add(fobAntenna);
 const fobBall = new THREE.Mesh(new THREE.SphereGeometry(0.0345, 10, 10), fobBlackMat);
 fobBall.position.set(0, 0.93, 0); beaconGroup.add(fobBall);
+// Beacon glow light — illuminates the device (and a pool of ground) at night
+const fobLight = new THREE.PointLight(0x66ff9e, 2.2, 3.6);
+fobLight.position.set(0, 0.5, 0.5); beaconGroup.add(fobLight);
 // Dummy for animation loop reference
 const devRing = { rotation: { y: 0 } };
 scene.add(beaconGroup);
@@ -5277,6 +5282,7 @@ if (!beaconPickedUp) {
   const fobPulse = 0.5 + Math.sin(now * 0.003) * 0.5;
   fobRedMat.opacity = 0.5 + fobPulse * 0.5;
   devTop.scale.setScalar(0.8 + fobPulse * 0.4);
+  fobLight.intensity = 1.7 + fobPulse * 1.3;
   beamMat.opacity = 0.08 + Math.sin(now * 0.001 * 1.5) * 0.05;
   beamCoreMat.opacity = 0.2 + Math.sin(now * 0.001 * 2) * 0.08;
   groundGlowMat.opacity = 0.2 + Math.sin(now * 0.001 * 1.5) * 0.1;

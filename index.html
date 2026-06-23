@@ -742,7 +742,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.33</div>
+<div id="version-tag">v7.34</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -3949,24 +3949,53 @@ minimapZoom.addEventListener('touchend', function(e) {
 minimapZoom.addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: true });
 minimapZoom.addEventListener('touchmove', function(e) { e.stopPropagation(); }, { passive: true });
 
-// Click listener on minimap canvas
+function setZoomIdx(ni) {
+  zoomIdx = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, ni));
+  updateZoomFromIdx();
+}
+// Desktop / Mac: scroll wheel and trackpad pinch (ctrl+wheel) zoom the open map
+minimapCanvas.addEventListener('wheel', function(e) {
+  if (!minimapExpanded) return;
+  e.preventDefault(); e.stopPropagation();
+  setZoomIdx(zoomIdx + (e.deltaY < 0 ? 1 : -1)); // scroll up / pinch out = zoom in
+}, { passive: false });
+
+// Click toggles the map (desktop)
 minimapCanvas.addEventListener('click', function(e) {
   e.stopPropagation();
   toggleMinimap();
 });
-minimapCanvas.addEventListener('touchend', function(e) {
-  e.stopPropagation();
-  e.preventDefault();
-  toggleMinimap();
-}, { passive: false });
 
-// Prevent touch events on minimap from reaching camera look controls
+// Touch: single tap toggles; two-finger pinch zooms the open map
+var mmPinchDist0 = 0, mmPinching = false, mmGestureUsed = false;
 minimapCanvas.addEventListener('touchstart', function(e) {
   if (minimapExpanded) e.stopPropagation();
+  if (minimapExpanded && e.touches.length === 2) {
+    var t1 = e.touches[0], t2 = e.touches[1];
+    mmPinchDist0 = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    mmPinching = true; mmGestureUsed = true;
+  }
 }, { passive: true });
 minimapCanvas.addEventListener('touchmove', function(e) {
   if (minimapExpanded) e.stopPropagation();
+  if (mmPinching && e.touches.length === 2) {
+    var t1 = e.touches[0], t2 = e.touches[1];
+    var d = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    if (mmPinchDist0 > 0) {
+      var ratio = d / mmPinchDist0;
+      if (ratio > 1.18) { setZoomIdx(zoomIdx + 1); mmPinchDist0 = d; }
+      else if (ratio < 0.85) { setZoomIdx(zoomIdx - 1); mmPinchDist0 = d; }
+    }
+  }
 }, { passive: true });
+minimapCanvas.addEventListener('touchend', function(e) {
+  e.stopPropagation();
+  if (e.cancelable) e.preventDefault();
+  if (e.touches.length === 0) {
+    if (mmPinching || mmGestureUsed) { mmPinching = false; mmGestureUsed = false; return; }
+    toggleMinimap();
+  }
+}, { passive: false });
 
 // ── Waypoint Panel Logic ──────────────────────────────────────
 var waypointPanel = document.getElementById('waypoint-panel');

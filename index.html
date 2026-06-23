@@ -24,6 +24,13 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #hint { font-size:11px;color:rgba(160,130,200,0.5);margin-top:16px;line-height:1.9; }
 #ui { position:absolute;top:12px;left:50%;transform:translateX(-50%);color:rgba(200,170,255,0.65);font-size:11px;pointer-events:none;display:none;white-space:nowrap;transition:opacity 2s ease; }
 #fly-indicator { display:none;position:absolute;top:14px;left:50%;transform:translateX(-50%);color:rgba(140,220,255,0.65);font-family:monospace;font-size:10px;letter-spacing:0.12em;pointer-events:none;z-index:8; }
+#fly-hud { display:none;position:absolute;inset:0;pointer-events:none;z-index:9;font-family:monospace;color:rgba(150,235,205,0.82); }
+#fly-hud .fh-read { position:absolute;font-size:13px;letter-spacing:0.1em;text-shadow:0 0 5px rgba(0,0,0,0.7);white-space:nowrap; }
+#fh-hdg { top:54px;left:50%;transform:translateX(-50%); }
+#fh-alt { top:50%;right:8%;transform:translateY(-50%);text-align:right; }
+#fh-spd { top:50%;left:8%;transform:translateY(-50%); }
+#fh-horizon { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:360px;height:300px;overflow:visible; }
+#fh-horizon text { font-family:monospace;font-size:11px;fill:rgba(150,235,205,0.6); }
 #jump-btn { display:none;position:absolute;bottom:123px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(180,140,255,0.18);border:1.5px solid rgba(200,170,255,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
 #jump-btn:active { background:rgba(180,140,255,0.35); }
 #fly-up-btn { display:none;position:absolute;bottom:185px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(140,255,180,0.16);border:1.5px solid rgba(170,255,200,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
@@ -700,6 +707,21 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <div id="crosshair"></div>
 <div id="ui">WASD move · mouse/arrows look · space jump · space×2 fly · W×2 sprint · ESC release</div>
 <div id="fly-indicator">✦ FLYING — double-tap space to land</div>
+<div id="fly-hud">
+  <div class="fh-read" id="fh-hdg">HDG 000</div>
+  <div class="fh-read" id="fh-alt">ALT 0m</div>
+  <div class="fh-read" id="fh-spd">SPD 0</div>
+  <svg id="fh-horizon" viewBox="-180 -150 360 300" xmlns="http://www.w3.org/2000/svg">
+    <g id="fh-ladder"></g>
+    <g stroke="rgba(255,200,100,0.92)" stroke-width="2.2" fill="none">
+      <line x1="-46" y1="0" x2="-16" y2="0"/>
+      <line x1="16" y1="0" x2="46" y2="0"/>
+      <line x1="-16" y1="0" x2="-16" y2="7"/>
+      <line x1="16" y1="0" x2="16" y2="7"/>
+      <circle cx="0" cy="0" r="2.5" fill="rgba(255,200,100,0.92)"/>
+    </g>
+  </svg>
+</div>
 
 <!-- HUD Layout -->
 <div id="hud-layer">
@@ -742,7 +764,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.36</div>
+<div id="version-tag">v7.37</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -4271,6 +4293,50 @@ function updateCompass() {
   compassEl.style.transform = 'rotate(' + deg + 'deg)';
 }
 
+// ── Flying HUD (artificial horizon + readouts) ──────────────────
+var flyHudEl = document.getElementById('fly-hud');
+var flyLadder = document.getElementById('fh-ladder');
+var fhHdg = document.getElementById('fh-hdg'), fhAlt = document.getElementById('fh-alt'), fhSpd = document.getElementById('fh-spd');
+var flyPrevX = 0, flyPrevZ = 0, flyHudBuilt = false;
+var FH_PIX_PER_RAD = 130;
+function buildFlyLadder() {
+  if (!flyLadder || flyHudBuilt) return;
+  flyHudBuilt = true;
+  var svgNS = 'http://www.w3.org/2000/svg';
+  function ln(x1, y1, x2, y2, op) {
+    var l = document.createElementNS(svgNS, 'line');
+    l.setAttribute('x1', x1); l.setAttribute('y1', y1); l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+    l.setAttribute('stroke', 'rgba(150,235,205,' + op + ')'); l.setAttribute('stroke-width', '1.4');
+    flyLadder.appendChild(l);
+  }
+  function lbl(x, y, t) {
+    var e = document.createElementNS(svgNS, 'text');
+    e.setAttribute('x', x); e.setAttribute('y', y + 4); e.setAttribute('text-anchor', 'middle');
+    e.textContent = t; flyLadder.appendChild(e);
+  }
+  ln(-150, 0, 150, 0, 0.55); // horizon line
+  var marks = [30, 20, 10, -10, -20, -30];
+  for (var i = 0; i < marks.length; i++) {
+    var a = marks[i], y = -(a * Math.PI / 180) * FH_PIX_PER_RAD;
+    ln(-58, y, -22, y, 0.42); ln(22, y, 58, y, 0.42);
+    lbl(-74, y, Math.abs(a)); lbl(74, y, Math.abs(a));
+  }
+}
+function updateFlyHud(dt) {
+  if (!flyHudEl) return;
+  buildFlyLadder();
+  var off = Math.max(-148, Math.min(148, pitch * FH_PIX_PER_RAD));
+  flyLadder.setAttribute('transform', 'translate(0,' + off.toFixed(1) + ')');
+  var fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+  var hdg = ((Math.round(Math.atan2(fwd.x, fwd.z) * 180 / Math.PI + 180) % 360) + 360) % 360;
+  fhHdg.textContent = 'HDG ' + String(hdg).padStart(3, '0');
+  var agl = Math.max(0, camera.position.y - getHeight(camera.position.x, camera.position.z));
+  fhAlt.textContent = 'ALT ' + Math.round(agl) + 'm';
+  var dx = camera.position.x - flyPrevX, dz = camera.position.z - flyPrevZ;
+  flyPrevX = camera.position.x; flyPrevZ = camera.position.z;
+  fhSpd.textContent = 'SPD ' + Math.min(999, Math.round(Math.sqrt(dx * dx + dz * dz) / Math.max(0.001, dt)));
+}
+
 // ── Input ──────────────────────────────────────────────────────
 const keys = {};
 let yaw = 0, pitch = 0, locked = false, started = false;
@@ -5319,6 +5385,18 @@ scene.fog.far = BASE_FOG_FAR * (1 - stormI * 0.3);
 // Flying: smoothly push the fog out so the wider terrain ring is visible
 flyView += ((flyMode ? 1 : 0) - flyView) * 0.05;
 if (flyView > 0.001) scene.fog.far *= (1 + flyView * 0.8);
+
+// Flying HUD (artificial horizon + heading/altitude/speed)
+if (flyHudEl) {
+  if (flyView > 0.02) {
+    flyHudEl.style.display = 'block';
+    flyHudEl.style.opacity = flyView.toFixed(2);
+    updateFlyHud(dt);
+  } else {
+    flyHudEl.style.display = 'none';
+    flyPrevX = camera.position.x; flyPrevZ = camera.position.z; // avoid a speed spike on entry
+  }
+}
 
 // Movement
 doMove(dt);

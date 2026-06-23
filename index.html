@@ -764,7 +764,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.40</div>
+<div id="version-tag">v7.41</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -853,6 +853,7 @@ WASD — move &nbsp;·&nbsp; W ×2 (hold) — sprint<br>
 Mouse / arrows — look<br>
 Space — jump &nbsp;·&nbsp; Space ×2 — fly &nbsp;·&nbsp; in fly: hold Space up / Shift down<br>
 F / 1-6 — use item &nbsp;·&nbsp; M — minimap<br>
+, / . — cycle locations (locator) <br>
 ESC — release cursor
 </div>
 </div>
@@ -4356,6 +4357,16 @@ document.addEventListener('keyup', e => {
   keys[e.code] = false;
   if (e.code === 'Space') jumpHeld = false;
   if (e.code === 'KeyW') sprintActive = false; // releasing W ends the sprint
+});
+// , and . cycle through tracked locations while the locator is up
+document.addEventListener('keydown', e => {
+  if (!started || menuOpen || !locatorDeviceActive || waypoints.length === 0) return;
+  if (e.code !== 'Comma' && e.code !== 'Period') return;
+  e.preventDefault();
+  var dir = e.code === 'Period' ? 1 : -1;
+  var base = (activeWaypointIdx >= 0 && activeWaypointIdx < waypoints.length) ? activeWaypointIdx : (dir > 0 ? -1 : 0);
+  var ni = ((base + dir) % waypoints.length + waypoints.length) % waypoints.length;
+  locSelectWaypoint(ni);
 });
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; });
 canvas.addEventListener('click', () => { if (started && !MOBILE && !menuOpen) canvas.requestPointerLock(); });

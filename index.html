@@ -742,7 +742,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.32</div>
+<div id="version-tag">v7.33</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -860,16 +860,6 @@ ESC — release cursor
 <div class="settings-section">
 <div class="settings-section-title">HUD</div>
 <div class="settings-row">
-<span class="settings-label">Coordinates</span>
-<select class="settings-select" id="hud-pos-coords">
-<option value="top-left" selected>Top-Left</option>
-<option value="top-right">Top-Right</option>
-<option value="bottom-left">Bottom-Left</option>
-<option value="bottom-right">Bottom-Right</option>
-<option value="hidden">Hidden</option>
-</select>
-</div>
-<div class="settings-row">
 <span class="settings-label">Compass</span>
 <select class="settings-select" id="hud-pos-compass">
 <option value="top-left">Top-Left</option>
@@ -887,16 +877,6 @@ ESC — release cursor
 <option value="bottom-left">Bottom-Left</option>
 <option value="bottom-right">Bottom-Right</option>
 <option value="hidden">Hidden</option>
-</select>
-</div>
-<div class="settings-row">
-<span class="settings-label">Time / Phase</span>
-<select class="settings-select" id="hud-pos-time">
-<option value="top-left">Top-Left</option>
-<option value="top-right">Top-Right</option>
-<option value="bottom-left">Bottom-Left</option>
-<option value="bottom-right">Bottom-Right</option>
-<option value="hidden" selected>Hidden</option>
 </select>
 </div>
 <div class="settings-row">
@@ -1364,6 +1344,7 @@ return C_DAY.clone();
 
 const timeEl = document.getElementById('time-label');
 const phaseEl = document.getElementById('phase-label');
+var currentTimeStr = '06:00', currentPhaseName = 'DAWN'; // mirrored for the scanner screen
 let currentDayF = 0;
 
 // Smoothstep helper
@@ -1454,8 +1435,10 @@ entry.mat.emissive.b = Math.max(entry.mat.emissive.b, entry.baseEmissive.b);
 
 // ── HUD clock ──
 const hr = Math.floor(h), mn = Math.floor((h - hr) * 60);
-timeEl.textContent = String(hr).padStart(2,'0') + ':' + String(mn).padStart(2,'0');
-phaseEl.textContent = phaseName;
+currentTimeStr = String(hr).padStart(2,'0') + ':' + String(mn).padStart(2,'0');
+currentPhaseName = phaseName;
+if (timeEl) timeEl.textContent = currentTimeStr;
+if (phaseEl) phaseEl.textContent = currentPhaseName;
 }
 
 // ── Water System ───────────────────────────────────────────────
@@ -3427,7 +3410,7 @@ function drawHeldDeviceScreen(now) {
   var w = heldDeviceScreenCanvas.width;
   var h = heldDeviceScreenCanvas.height;
   var R = w / 512;
-  var scOp = 0.92, scBW = 6, scBO = 0.72, scFS = 1.45, scTh = 0.35, scSP = 0.57;
+  var scOp = 0.92, scBW = 6, scBO = 0.72, scFS = 1.45, scTh = 0.35, scSP = 0.50;
   var pad = Math.round(12 * scFS * R);
   var bw  = Math.round(scBW * R);
   var fs  = Math.round(20 * scFS * R);
@@ -3533,11 +3516,25 @@ function drawHeldDeviceScreen(now) {
   var valY = loY + lbFS + Math.round(4 * R);
   ctx.fillStyle = 'rgba(255,200,100,0.90)';
   ctx.font = loFS + 'px monospace';
-  hdFillWrapped(ctx, biomeName, x0, valY, col - Math.round(8 * R), loFS + 2);
+  var afterBiomeY = hdFillWrapped(ctx, biomeName, x0, valY, col - Math.round(8 * R), loFS + 2);
   ctx.fillText(weatherStr, x1, valY);
   ctx.fillStyle = bioLum > 50 ? 'rgba(120,240,160,0.90)' : 'rgba(255,200,100,0.90)';
   ctx.font = 'bold ' + loFS + 'px monospace';
   ctx.fillText(bioLum + '%', x2, valY);
+
+  // Second row: TIME / PHASE / COORD — positioned below the (possibly wrapped) biome value
+  var lo2 = Math.max(valY + loFS + Math.round(14 * R), afterBiomeY + Math.round(6 * R));
+  ctx.fillStyle = 'rgba(255,170,50,0.38)';
+  ctx.font = lbFS + 'px monospace';
+  ctx.fillText('TIME', x0, lo2);
+  ctx.fillText('PHASE', x1, lo2);
+  ctx.fillText('COORD', x2, lo2);
+  var val2Y = lo2 + lbFS + Math.round(4 * R);
+  ctx.fillStyle = 'rgba(255,200,100,0.90)';
+  ctx.font = loFS + 'px monospace';
+  ctx.fillText(currentTimeStr, x0, val2Y);
+  ctx.fillText(currentPhaseName, x1, val2Y);
+  ctx.fillText(Math.round(camera.position.x) + ',' + Math.round(camera.position.z), x2, val2Y);
 
   // Full-width animated scan bar (always)
   var barH  = Math.round(5 * R);
@@ -3623,10 +3620,10 @@ let menuOpen = false;
 
 // ── HUD Position System ────────────────────────────────────────
 const hudPositions = {
-  coords: 'top-left',
+  coords: 'hidden', // coords now shown on the scanner screen instead
   compass: 'hidden',
   minimap: 'top-left',
-  time: 'hidden',
+  time: 'hidden',   // time/phase now shown on the scanner screen instead
   fps: 'hidden'
 };
 
@@ -4531,14 +4528,13 @@ document.getElementById('snd-fx-val').textContent = this.value;
 
 // ── HUD Position Settings ──────────────────────────────────────
 const hudPosSelects = {
-  coords: document.getElementById('hud-pos-coords'),
   compass: document.getElementById('hud-pos-compass'),
   minimap: document.getElementById('hud-pos-minimap'),
-  time: document.getElementById('hud-pos-time'),
   fps: document.getElementById('hud-pos-fps')
 };
 
 for (const [key, sel] of Object.entries(hudPosSelects)) {
+  if (!sel) continue;
   sel.addEventListener('change', function() {
     hudPositions[key] = this.value;
     updateHudLayout();

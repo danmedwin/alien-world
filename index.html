@@ -742,7 +742,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.35</div>
+<div id="version-tag">v7.36</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2292,6 +2292,12 @@ var plat2 = new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,0.3,8), ruinStoneM
 plat2.position.set(ARTIFACT_X, artifactTerrY + 0.95, ARTIFACT_Z);
 scene.add(plat2);
 
+// Circular platform tops the player can stand on (center, radius, top surface)
+var floorDiscs = [
+  { cx: ARTIFACT_X, cz: ARTIFACT_Z, r: 3.0, topY: artifactTerrY + 0.8 },
+  { cx: ARTIFACT_X, cz: ARTIFACT_Z, r: 1.2, topY: artifactTerrY + 1.1 }
+];
+
 var ped1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.25,1.5,6), ruinStoneMat);
 ped1.position.set(ARTIFACT_X, artifactTerrY + 1.85, ARTIFACT_Z);
 ped1.userData = {scanType:'structure', species:'Artifact Pedestal', desc:'Crystalline focusing column', traits:'Active | Unknown power source'};
@@ -3618,6 +3624,28 @@ function checkWallCollision(newX, newZ, playerY) {
   return false;
 }
 
+// Highest standable surface (wall/platform top) the player is over, or -Infinity.
+// Only counts a surface the player's feet are at/above (with grace) so walls
+// you're beside act as obstacles, not floors.
+function getFloorTop(x, z, feetY) {
+  var top = -Infinity;
+  for (var i = 0; i < wallColliders.length; i++) {
+    var c = wallColliders[i];
+    if (c.topY === undefined) continue;
+    if (x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ && feetY >= c.topY - 0.6) {
+      if (c.topY > top) top = c.topY;
+    }
+  }
+  for (var d = 0; d < floorDiscs.length; d++) {
+    var fd = floorDiscs[d];
+    var ddx = x - fd.cx, ddz = z - fd.cz;
+    if (ddx * ddx + ddz * ddz <= fd.r * fd.r && feetY >= fd.topY - 0.6) {
+      if (fd.topY > top) top = fd.topY;
+    }
+  }
+  return top;
+}
+
 // ── Settings State ─────────────────────────────────────────────
 let invertX = true;
 let invertY = true;
@@ -4401,6 +4429,9 @@ if (flyMode) {
   if (ruinDx * ruinDx + ruinDz * ruinDz < 20 * 20) {
     ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
   }
+  // Stand on top of walls / platforms the player has cleared
+  var wallTop = getFloorTop(camera.position.x, camera.position.z, camera.position.y - 2.5);
+  if (wallTop > -Infinity) ty = Math.max(ty, wallTop + 2.5);
   if (playerJumping) {
     if (jumpHeld && jumpHeldTime < 0.45) {
       velY += 22 * (jumpSprint ? 1.4 : 1.0) * dt;

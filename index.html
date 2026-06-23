@@ -740,7 +740,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.26</div>
+<div id="version-tag">v7.27</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -2108,6 +2108,7 @@ var locatorItem = {
       // Bring up the held locator device — select a target by tapping the list
       this.active = true;
       locatorDeviceActive = true;
+      locScreenMode = 'list'; locEditPinIdx = -1; locScreenDirty = true;
       if (!heldLocRenderer) initHeldLocator();
       var lwOn = document.getElementById('held-locator-wrap');
       if (lwOn) lwOn.style.display = 'block';
@@ -2696,7 +2697,11 @@ var locDragging = false, locDragStartX = 0, locDragStartY = 0, locDragStartLeft 
 var locPinching = false, locPinchDist0 = 0, locPinchScale0 = 0, locPinchLeft0 = 0, locPinchTop0 = 0, locPinchMidX = 0, locPinchMidY = 0;
 var locDownX = 0, locDownY = 0, locDownTime = 0, locMoved = false;
 var locLastTap = 0, locInteractionInit = false;
-var locRowRects = []; // [{y0,y1,idx}] in screen-canvas px, for tap hit-testing
+var locRowRects = []; // [{y0,y1,x0,x1,idx}] in screen-canvas px, for tap hit-testing
+var locScreenMode = 'list';   // 'list' | 'edit'
+var locEditPinIdx = -1, locNameEditing = false;
+var locScreenDirty = true, locScreenFrame = 0;
+var heldLocPulsePhase = 0, heldLocPrevNow = 0;
 
 // Cast rays in a small spread pattern around center
 var scanOffsets = [
@@ -3027,10 +3032,12 @@ function initHeldLocator() {
   var fillL = new THREE.DirectionalLight(0x4466aa, 0.4); fillL.position.set(1.5, -0.5, -1.5); heldLocScene.add(fillL);
   var glowL = new THREE.PointLight(0x44ff88, 0.6, 1.8); glowL.position.set(0, 0.5, 0.6); heldLocScene.add(glowL);
 
-  // Screen texture (locations list)
+  // Screen texture (locations list) — match the scanner's resolution tier
+  var locIsMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  var locTexW = locIsMobile ? 2048 : 4096;
   heldLocScreenCanvas = document.createElement('canvas');
-  heldLocScreenCanvas.width = 512;
-  heldLocScreenCanvas.height = 640;
+  heldLocScreenCanvas.width = locTexW;
+  heldLocScreenCanvas.height = Math.round(locTexW * 1.2); // screen mesh aspect 0.25 : 0.30
   heldLocScrCtx = heldLocScreenCanvas.getContext('2d');
   heldLocScreenTexture = new THREE.CanvasTexture(heldLocScreenCanvas);
 
@@ -3078,50 +3085,155 @@ function locFillEllipsis(ctx, text, x, y, maxW) {
 function drawHeldLocatorScreen() {
   if (!heldLocScrCtx) return;
   var ctx = heldLocScrCtx, w = heldLocScreenCanvas.width, h = heldLocScreenCanvas.height;
+  var R = w / 512; // all measurements scale from a 512-wide baseline
   locRowRects = [];
-  // Background
+  // Background + scanlines + border
   ctx.fillStyle = 'rgba(3,12,8,0.95)'; ctx.fillRect(0, 0, w, h);
-  for (var sy = 0; sy < h; sy += 4) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; ctx.fillRect(0, sy, w, 2); }
-  ctx.strokeStyle = 'rgba(70,220,140,0.5)'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, w - 6, h - 6);
-  ctx.textBaseline = 'top';
-  // Header
-  ctx.fillStyle = 'rgba(120,255,180,0.85)'; ctx.font = 'bold 26px monospace';
-  ctx.fillText('◉ LOCATIONS', 18, 16);
-  ctx.strokeStyle = 'rgba(70,220,140,0.25)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(18, 52); ctx.lineTo(w - 18, 52); ctx.stroke();
-  // List rows
-  var rowH = 62, y0 = 64, pad = 16;
+  var sl = Math.max(1, Math.round(R * 2));
+  for (var sy = 0; sy < h; sy += sl * 2) { ctx.fillStyle = 'rgba(0,0,0,0.07)'; ctx.fillRect(0, sy, w, sl); }
+  ctx.strokeStyle = 'rgba(70,220,140,0.5)'; ctx.lineWidth = 6 * R; ctx.strokeRect(3 * R, 3 * R, w - 6 * R, h - 6 * R);
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  var pad = 16 * R;
+  if (locScreenMode === 'edit' && (locEditPinIdx < 0 || !waypoints[locEditPinIdx] || waypoints[locEditPinIdx].type !== 'pin')) {
+    locScreenMode = 'list'; locEditPinIdx = -1;
+  }
+  if (locScreenMode === 'edit') drawLocEditScreen(ctx, w, h, R, pad);
+  else drawLocListScreen(ctx, w, h, R, pad);
+  heldLocScreenTexture.needsUpdate = true;
+}
+
+function drawLocListScreen(ctx, w, h, R, pad) {
+  ctx.fillStyle = 'rgba(120,255,180,0.85)'; ctx.font = 'bold ' + Math.round(26 * R) + 'px monospace';
+  ctx.fillText('◉ LOCATIONS', pad, 16 * R);
+  ctx.strokeStyle = 'rgba(70,220,140,0.25)'; ctx.lineWidth = 2 * R;
+  ctx.beginPath(); ctx.moveTo(pad, 52 * R); ctx.lineTo(w - pad, 52 * R); ctx.stroke();
+  var rowH = 62 * R, y0 = 64 * R;
   for (var i = 0; i < waypoints.length; i++) {
     var wp = waypoints[i];
     var ry = y0 + i * rowH;
-    if (ry + rowH > h - 10) break; // clip overflow (paging handled in 2b if needed)
+    if (ry + rowH > h - 56 * R) break; // leave room for the drop-pin row
     var active = (locatorDeviceActive && i === activeWaypointIdx);
-    if (active) { ctx.fillStyle = 'rgba(70,220,140,0.16)'; ctx.fillRect(8, ry, w - 16, rowH - 6); }
-    // color dot
-    ctx.fillStyle = wp.color; ctx.beginPath(); ctx.arc(pad + 12, ry + 22, 9, 0, Math.PI * 2); ctx.fill();
-    // name
+    if (active) { ctx.fillStyle = 'rgba(70,220,140,0.16)'; ctx.fillRect(8 * R, ry, w - 16 * R, rowH - 6 * R); }
+    ctx.fillStyle = wp.color; ctx.beginPath(); ctx.arc(pad + 12 * R, ry + 22 * R, 9 * R, 0, Math.PI * 2); ctx.fill();
+    var isPin = wp.type === 'pin';
     ctx.fillStyle = active ? 'rgba(180,255,210,0.98)' : 'rgba(200,230,215,0.9)';
-    ctx.font = (active ? 'bold ' : '') + '24px monospace';
-    locFillEllipsis(ctx, wp.name, pad + 34, ry + 8, w - (pad + 34) - 120);
-    // distance
+    ctx.font = (active ? 'bold ' : '') + Math.round(24 * R) + 'px monospace';
+    locFillEllipsis(ctx, wp.name, pad + 34 * R, ry + 8 * R, w - (pad + 34 * R) - (isPin ? 150 * R : 110 * R));
     var dx = camera.position.x - wp.x, dz = camera.position.z - wp.z;
     var dist = Math.round(Math.sqrt(dx * dx + dz * dz));
-    ctx.fillStyle = 'rgba(110,220,160,0.75)'; ctx.font = '20px monospace'; ctx.textAlign = 'right';
-    ctx.fillText(dist + 'm', w - pad, ry + 12); ctx.textAlign = 'left';
-    // subtle separator
-    ctx.strokeStyle = 'rgba(70,220,140,0.12)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad, ry + rowH - 4); ctx.lineTo(w - pad, ry + rowH - 4); ctx.stroke();
-    locRowRects.push({ y0: ry, y1: ry + rowH - 6, idx: i });
+    ctx.fillStyle = 'rgba(110,220,160,0.75)'; ctx.font = Math.round(20 * R) + 'px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(dist + 'm', w - pad, ry + 14 * R); ctx.textAlign = 'left';
+    if (isPin) { // edit pencil
+      ctx.fillStyle = 'rgba(120,220,170,0.85)'; ctx.font = Math.round(26 * R) + 'px monospace';
+      ctx.fillText('✎', w - pad - 96 * R, ry + 11 * R);
+      locRowRects.push({ x0: w - pad - 110 * R, x1: w - pad - 62 * R, y0: ry, y1: ry + rowH - 6 * R, idx: -300 - i });
+    }
+    ctx.strokeStyle = 'rgba(70,220,140,0.12)'; ctx.lineWidth = 1 * R;
+    ctx.beginPath(); ctx.moveTo(pad, ry + rowH - 4 * R); ctx.lineTo(w - pad, ry + rowH - 4 * R); ctx.stroke();
+    locRowRects.push({ x0: 0, x1: w - pad - 116 * R, y0: ry, y1: ry + rowH - 6 * R, idx: i });
   }
-  // ＋ DROP PIN action row
   var dpY = y0 + waypoints.length * rowH;
-  if (dpY + 44 < h - 6) {
-    ctx.fillStyle = 'rgba(70,220,140,0.10)'; ctx.fillRect(8, dpY, w - 16, 42);
-    ctx.fillStyle = 'rgba(150,255,200,0.92)'; ctx.font = 'bold 22px monospace';
-    ctx.fillText('＋ DROP PIN', pad + 8, dpY + 10);
-    locRowRects.push({ y0: dpY, y1: dpY + 42, idx: -10 });
+  if (dpY + 44 * R < h - 6 * R) {
+    ctx.fillStyle = 'rgba(70,220,140,0.10)'; ctx.fillRect(8 * R, dpY, w - 16 * R, 42 * R);
+    ctx.fillStyle = 'rgba(150,255,200,0.92)'; ctx.font = 'bold ' + Math.round(22 * R) + 'px monospace';
+    ctx.fillText('＋ DROP PIN', pad + 8 * R, dpY + 10 * R);
+    locRowRects.push({ x0: 0, x1: w, y0: dpY, y1: dpY + 42 * R, idx: -10 });
   }
-  heldLocScreenTexture.needsUpdate = true;
+}
+
+function drawLocEditScreen(ctx, w, h, R, pad) {
+  var wp = waypoints[locEditPinIdx];
+  ctx.fillStyle = 'rgba(120,255,180,0.85)'; ctx.font = 'bold ' + Math.round(24 * R) + 'px monospace';
+  ctx.fillText('✎ EDIT PIN', pad, 16 * R);
+  ctx.strokeStyle = 'rgba(70,220,140,0.25)'; ctx.lineWidth = 2 * R;
+  ctx.beginPath(); ctx.moveTo(pad, 52 * R); ctx.lineTo(w - pad, 52 * R); ctx.stroke();
+  // Name field
+  var nfY = 72 * R, nfH = 56 * R;
+  ctx.fillStyle = locNameEditing ? 'rgba(70,220,140,0.20)' : 'rgba(70,220,140,0.08)';
+  ctx.fillRect(pad, nfY, w - 2 * pad, nfH);
+  ctx.strokeStyle = 'rgba(70,220,140,0.45)'; ctx.lineWidth = 2 * R; ctx.strokeRect(pad, nfY, w - 2 * pad, nfH);
+  ctx.fillStyle = 'rgba(210,255,230,0.95)'; ctx.font = Math.round(26 * R) + 'px monospace';
+  var caret = (locNameEditing && Math.floor(Date.now() / 500) % 2 === 0) ? '|' : '';
+  locFillEllipsis(ctx, (wp.name || '') + caret, pad + 14 * R, nfY + 14 * R, w - 2 * pad - 24 * R);
+  locRowRects.push({ x0: pad, x1: w - pad, y0: nfY, y1: nfY + nfH, idx: -20 });
+  // Color swatches
+  ctx.fillStyle = 'rgba(150,220,180,0.7)'; ctx.font = Math.round(16 * R) + 'px monospace';
+  ctx.fillText('COLOR', pad, nfY + nfH + 14 * R);
+  var swY = nfY + nfH + 40 * R, swSize = 50 * R, swGap = 16 * R;
+  var perRow = Math.max(1, Math.floor((w - 2 * pad + swGap) / (swSize + swGap)));
+  for (var j = 0; j < pinColors.length; j++) {
+    var col = j % perRow, rr = Math.floor(j / perRow);
+    var sx = pad + col * (swSize + swGap), sy2 = swY + rr * (swSize + swGap);
+    ctx.fillStyle = pinColors[j]; ctx.fillRect(sx, sy2, swSize, swSize);
+    if (pinColors[j].toLowerCase() === (wp.color || '').toLowerCase()) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 4 * R; ctx.strokeRect(sx - 2 * R, sy2 - 2 * R, swSize + 4 * R, swSize + 4 * R);
+    }
+    locRowRects.push({ x0: sx, x1: sx + swSize, y0: sy2, y1: sy2 + swSize, idx: -100 - j });
+  }
+  var swRows = Math.ceil(pinColors.length / perRow);
+  var btnY = swY + swRows * (swSize + swGap) + 24 * R, btnH = 56 * R, btnW = (w - 2 * pad - 16 * R) / 2;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(70,220,140,0.18)'; ctx.fillRect(pad, btnY, btnW, btnH);
+  ctx.strokeStyle = 'rgba(70,220,140,0.5)'; ctx.lineWidth = 2 * R; ctx.strokeRect(pad, btnY, btnW, btnH);
+  ctx.fillStyle = 'rgba(180,255,210,0.95)'; ctx.font = 'bold ' + Math.round(22 * R) + 'px monospace';
+  ctx.fillText('DONE', pad + btnW / 2, btnY + 16 * R);
+  locRowRects.push({ x0: pad, x1: pad + btnW, y0: btnY, y1: btnY + btnH, idx: -30 });
+  var dbx = pad + btnW + 16 * R;
+  ctx.fillStyle = 'rgba(220,70,70,0.16)'; ctx.fillRect(dbx, btnY, btnW, btnH);
+  ctx.strokeStyle = 'rgba(255,90,90,0.5)'; ctx.lineWidth = 2 * R; ctx.strokeRect(dbx, btnY, btnW, btnH);
+  ctx.fillStyle = 'rgba(255,150,150,0.95)'; ctx.fillText('DELETE', dbx + btnW / 2, btnY + 16 * R);
+  ctx.textAlign = 'left';
+  locRowRects.push({ x0: dbx, x1: dbx + btnW, y0: btnY, y1: btnY + btnH, idx: -31 });
+}
+
+// Dispatch a screen tap to the right action based on the hit-rect idx code
+function locHandleTap(idx) {
+  if (idx >= 0) { locSelectWaypoint(idx); return; }
+  if (idx === -10) { dropPin(); locScreenDirty = true; return; }
+  if (idx === -20) { locStartNameEdit(); return; }
+  if (idx === -30) { locExitEdit(); return; }                       // DONE
+  if (idx === -31) { locDeletePin(); return; }                      // DELETE
+  if (idx <= -300) { locOpenEdit(-300 - idx); return; }             // edit pencil
+  if (idx <= -100) { locSetPinColor(-100 - idx); return; }          // color swatch
+}
+function locOpenEdit(i) {
+  if (i < 0 || !waypoints[i] || waypoints[i].type !== 'pin') return;
+  locScreenMode = 'edit'; locEditPinIdx = i; locNameEditing = false; locScreenDirty = true;
+}
+function locExitEdit() {
+  if (locNameInput) locNameInput.blur();
+  locScreenMode = 'list'; locEditPinIdx = -1; locNameEditing = false; locScreenDirty = true;
+}
+function locSetPinColor(ci) {
+  if (locEditPinIdx < 0 || !waypoints[locEditPinIdx] || ci < 0 || ci >= pinColors.length) return;
+  waypoints[locEditPinIdx].color = pinColors[ci];
+  if (activeWaypointIdx === locEditPinIdx && arrowMat) { arrowMat.color.set(pinColors[ci]); arrowMat2.color.set(pinColors[ci]); }
+  locScreenDirty = true;
+}
+function locDeletePin() {
+  var i = locEditPinIdx;
+  if (i < 0 || !waypoints[i]) { locExitEdit(); return; }
+  waypoints.splice(i, 1);
+  if (activeWaypointIdx === i) { activeWaypointIdx = -1; locatorActive = false; if (arrowGroup) arrowGroup.visible = false; }
+  else if (activeWaypointIdx > i) { activeWaypointIdx--; }
+  showPickupNotification('Pin deleted');
+  locExitEdit();
+}
+var locNameInput = null;
+function locStartNameEdit() {
+  if (locEditPinIdx < 0 || !waypoints[locEditPinIdx]) return;
+  if (!locNameInput) {
+    locNameInput = document.createElement('input');
+    locNameInput.type = 'text'; locNameInput.maxLength = 22;
+    locNameInput.style.cssText = 'position:fixed;bottom:2px;left:2px;width:2px;height:2px;opacity:0.01;border:none;background:transparent;color:transparent;z-index:40;';
+    locNameInput.addEventListener('input', function () { if (locEditPinIdx >= 0 && waypoints[locEditPinIdx]) { waypoints[locEditPinIdx].name = locNameInput.value; locScreenDirty = true; } });
+    locNameInput.addEventListener('blur', function () { locNameEditing = false; locScreenDirty = true; });
+    locNameInput.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Enter') locNameInput.blur(); });
+    document.body.appendChild(locNameInput);
+  }
+  locNameInput.value = waypoints[locEditPinIdx].name;
+  locNameEditing = true; locScreenDirty = true;
+  setTimeout(function () { locNameInput.focus(); }, 0);
 }
 
 // Select a waypoint as the active tracking target (from a screen tap)
@@ -3135,6 +3247,7 @@ function locSelectWaypoint(idx) {
   if (typeof arrowMat2 !== 'undefined' && arrowMat2) arrowMat2.color.set(wp.color);
   showPickupNotification('Tracking: ' + wp.name);
   locatorSettleTime = Date.now();
+  locScreenDirty = true;
 }
 
 // Raycast a tap (client coords) onto the screen mesh → list row → select
@@ -3149,16 +3262,12 @@ function locTapAt(clientX, clientY) {
   locRaycaster.setFromCamera(locNdc, heldLocCamera);
   var hits = locRaycaster.intersectObject(heldLocScreenMesh, false);
   if (!hits.length || !hits[0].uv) return;
-  // UV (0,0)=bottom-left → canvas px from top
+  // UV (0,0)=bottom-left → canvas px from top-left
+  var pxX = hits[0].uv.x * heldLocScreenCanvas.width;
   var pxY = (1 - hits[0].uv.y) * heldLocScreenCanvas.height;
   for (var i = 0; i < locRowRects.length; i++) {
-    if (pxY >= locRowRects[i].y0 && pxY <= locRowRects[i].y1) {
-      var ri = locRowRects[i].idx;
-      if (ri === -10) { dropPin(); return; }                 // ＋ DROP PIN row
-      // Tapping an already-active pin opens its editor (rename / recolor)
-      if (waypoints[ri] && waypoints[ri].type === 'pin' && ri === activeWaypointIdx) { openPinEditor(ri); return; }
-      locSelectWaypoint(ri); return;
-    }
+    var rr = locRowRects[i];
+    if (pxX >= rr.x0 && pxX <= rr.x1 && pxY >= rr.y0 && pxY <= rr.y1) { locHandleTap(rr.idx); return; }
   }
 }
 
@@ -5437,7 +5546,9 @@ if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
 
 // Held locator device (elongated fob + locations screen)
 if (locatorDeviceActive && heldLocRenderer && heldLocMesh) {
-  drawHeldLocatorScreen();
+  // Redraw the screen on a light throttle (≈10fps) or immediately when dirty
+  locScreenFrame++;
+  if (locScreenDirty || locScreenFrame % 6 === 0) { drawHeldLocatorScreen(); locScreenDirty = false; }
   // Gentle idle bob
   heldLocMesh.rotation.y = Math.sin(now * 0.0006) * 0.05;
   heldLocMesh.position.y = Math.sin(now * 0.0009) * 0.006;
@@ -5453,18 +5564,20 @@ if (locatorDeviceActive && heldLocRenderer && heldLocMesh) {
       var lFwd = new THREE.Vector3(); camera.getWorldDirection(lFwd);
       var bearing = Math.atan2(ldx, ldz);            // world bearing to target
       var facing = Math.atan2(lFwd.x, lFwd.z);       // player facing
-      heldLocChevronPivot.rotation.z = -(bearing - facing); // 0 = target dead ahead → chevron up
+      heldLocChevronPivot.rotation.z = (bearing - facing); // 0 = target dead ahead → chevron up
     }
   } else if (heldLocChevronPivot) {
     heldLocChevronPivot.visible = false;
   }
   if (heldLocLens) {
-    // Pulse faster as the player nears the active target
+    // Pulse rate (not size) rises as the player nears the active target.
+    // Phase is accumulated so a changing rate never makes the pulse jump.
     var prox = locTracking ? Math.max(0, 1 - Math.min(locDist, 300) / 300) : 0;
-    var pulseFreq = 0.0016 + prox * 0.013;
-    var pulseAmp = 0.10 + prox * 0.06;
-    var ps = 1 + Math.sin(now * pulseFreq) * pulseAmp;
-    heldLocLens.scale.setScalar(ps);
+    var pulseFreq = 0.0016 + prox * 0.011; // rad/ms
+    var dtMs = heldLocPrevNow ? Math.min(100, now - heldLocPrevNow) : 16;
+    heldLocPrevNow = now;
+    heldLocPulsePhase += pulseFreq * dtMs;
+    heldLocLens.scale.setScalar(1 + Math.sin(heldLocPulsePhase) * 0.12);
   }
   heldLocRenderer.render(heldLocScene, heldLocCamera);
 }

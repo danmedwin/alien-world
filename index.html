@@ -26,6 +26,8 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #fly-indicator { display:none;position:absolute;top:14px;left:50%;transform:translateX(-50%);color:rgba(140,220,255,0.65);font-family:monospace;font-size:10px;letter-spacing:0.12em;pointer-events:none;z-index:8; }
 #jump-btn { display:none;position:absolute;bottom:123px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(180,140,255,0.18);border:1.5px solid rgba(200,170,255,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
 #jump-btn:active { background:rgba(180,140,255,0.35); }
+#fly-up-btn { display:none;position:absolute;bottom:185px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(140,255,180,0.16);border:1.5px solid rgba(170,255,200,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
+#fly-up-btn:active { background:rgba(140,255,180,0.32); }
 #joystick-zone { position:absolute;bottom:90px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
 #joystick-base { width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(200,170,255,0.25);position:relative; }
 #joystick-thumb { width:46px;height:46px;border-radius:50%;background:rgba(180,140,255,0.25);border:1.5px solid rgba(200,170,255,0.45);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
@@ -740,11 +742,12 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.31</div>
+<div id="version-tag">v7.32</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
 <div id="jump-btn"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+<div id="fly-up-btn"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(170,255,200,0.85)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
 <div id="underwater-overlay"></div>
 
 <div id="hotbar">
@@ -1975,6 +1978,9 @@ function updateJumpBtnIcon() {
   } else {
     btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
+  // Mobile ascend button only while flying
+  var upBtn = document.getElementById('fly-up-btn');
+  if (upBtn) upBtn.style.display = (flyMode && MOBILE) ? 'flex' : 'none';
 }
 var _audioCtx = null;
 function getOrCreateAudioCtx() {
@@ -4404,6 +4410,19 @@ const joystickSection = document.getElementById('joystick-section');
 // Show joystick section only on mobile; show controls ref only on desktop
 if (MOBILE) joystickSection.style.display = '';
 else document.getElementById('desktop-controls-section').style.display = '';
+
+// Mobile flying hint text (desktop keeps the spacebar wording)
+if (MOBILE) {
+  var flyInd = document.getElementById('fly-indicator');
+  if (flyInd) flyInd.textContent = '✦ FLYING — double-tap ↓ to land';
+}
+// Mobile ascend button (hold to rise while flying)
+var flyUpBtn = document.getElementById('fly-up-btn');
+if (flyUpBtn) {
+  flyUpBtn.addEventListener('touchstart', function(e) { e.preventDefault(); if (flyMode) flyUpHeld = true; }, { passive: false });
+  flyUpBtn.addEventListener('touchend', function() { flyUpHeld = false; }, { passive: true });
+  flyUpBtn.addEventListener('touchcancel', function() { flyUpHeld = false; }, { passive: true });
+}
 
 // Mobile jump button
 var jumpBtn = document.getElementById('jump-btn');

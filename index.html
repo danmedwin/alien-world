@@ -696,7 +696,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <body>
 <canvas id="c"></canvas>
 <div id="crosshair"></div>
-<div id="ui">WASD move · mouse/arrows look · space jump · space×2 fly · shift sprint · ESC release</div>
+<div id="ui">WASD move · mouse/arrows look · space jump · space×2 fly · W×2 sprint · ESC release</div>
 <div id="fly-indicator">✦ FLYING — double-tap space to land</div>
 
 <!-- HUD Layout -->
@@ -740,7 +740,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.30</div>
+<div id="version-tag">v7.31</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -824,9 +824,9 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <div class="settings-section" id="desktop-controls-section" style="display:none">
 <div class="settings-section-title">Controls</div>
 <div style="color:rgba(180,150,220,0.65);font-size:11px;line-height:2.1;font-family:monospace;">
-WASD — move &nbsp;·&nbsp; Shift — sprint<br>
+WASD — move &nbsp;·&nbsp; W ×2 (hold) — sprint<br>
 Mouse / arrows — look<br>
-Space — jump &nbsp;·&nbsp; Space ×2 — fly mode<br>
+Space — jump &nbsp;·&nbsp; Space ×2 — fly &nbsp;·&nbsp; in fly: hold Space up / Shift down<br>
 F / 1-6 — use item &nbsp;·&nbsp; M — minimap<br>
 ESC — release cursor
 </div>
@@ -1888,7 +1888,7 @@ document.addEventListener('keydown', e => {
     } else {
       // Single tap: small initial pop + hold boost
       if (!flyMode && playerGrounded) {
-        var isSprint = keys['ShiftLeft'] || keys['ShiftRight'];
+        var isSprint = sprintActive;
         jumpSprint = isSprint;
         playerJumping = true; playerGrounded = false;
         velY = 3.5 * (isSprint ? 1.2 : 1.0);
@@ -1933,6 +1933,8 @@ var jumpSprint = false;
 var flyMode = false;
 var lastSpaceTime = 0;
 var jumpBtnHeld = false;
+var flyUpHeld = false; // mobile fly-up (ascend) button held
+var sprintActive = false, wTapTime = 0; // desktop sprint = double-tap W (held)
 var beaconPillarParticles = null;
 var scannerPillarMesh = null, scannerPillarCore = null, scannerPillarGlow = null, scannerPillarParticles = null;
 
@@ -2016,6 +2018,23 @@ function playFlyPowerUp() {
   ping.type = 'sine'; ping.frequency.value = 1760;
   pingG.gain.setValueAtTime(0, t + dur * 0.82); pingG.gain.linearRampToValueAtTime(0.22, t + dur * 0.9); pingG.gain.linearRampToValueAtTime(0, t + dur + 0.08);
   ping.connect(pingG); pingG.connect(ctx.destination); ping.start(t + dur * 0.82); ping.stop(t + dur + 0.12);
+}
+function playLandThud(impact) {
+  var ctx = getOrCreateAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime;
+  var vol = Math.max(0.05, Math.min(0.22, (impact || 4) * 0.022));
+  // Low body of the thud
+  var o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(125, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.13);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.19);
+  o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.21);
+  // Soft low-passed noise for the "dirt" texture
+  var nLen = Math.ceil(ctx.sampleRate * 0.05), nBuf = ctx.createBuffer(1, nLen, ctx.sampleRate), nd = nBuf.getChannelData(0);
+  for (var i = 0; i < nLen; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / nLen);
+  var ns = ctx.createBufferSource(), nf = ctx.createBiquadFilter(), ng = ctx.createGain();
+  ns.buffer = nBuf; nf.type = 'lowpass'; nf.frequency.value = 380;
+  ng.gain.setValueAtTime(vol * 0.6, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  ns.connect(nf); nf.connect(ng); ng.connect(ctx.destination); ns.start(t);
 }
 
 // 3D holographic arrow — extruded chevron with tail, clear directionality
@@ -4189,8 +4208,20 @@ function updateCompass() {
 // ── Input ──────────────────────────────────────────────────────
 const keys = {};
 let yaw = 0, pitch = 0, locked = false, started = false;
-document.addEventListener('keydown', e => { keys[e.code] = true; });
-document.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') jumpHeld = false; });
+document.addEventListener('keydown', e => {
+  // Desktop sprint: double-tap W, then hold to keep sprinting
+  if (e.code === 'KeyW' && !MOBILE && !e.repeat) {
+    var wNow = Date.now();
+    if (wNow - wTapTime < 300) sprintActive = true;
+    wTapTime = wNow;
+  }
+  keys[e.code] = true;
+});
+document.addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'Space') jumpHeld = false;
+  if (e.code === 'KeyW') sprintActive = false; // releasing W ends the sprint
+});
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; });
 canvas.addEventListener('click', () => { if (started && !MOBILE && !menuOpen) canvas.requestPointerLock(); });
 document.addEventListener('mousemove', e => {
@@ -4274,7 +4305,7 @@ let speedMult = 1.0;
 if (isUnderwater) speedMult = 0.35;
 else if (isWading) speedMult = 0.65;
 
-const sp = (keys['ShiftLeft']||keys['ShiftRight']||jSprinting) ? SPRINT : 1;
+const sp = (sprintActive || jSprinting) ? SPRINT : 1;
 let fwd=0, right=0;
 if (keys['KeyW']) fwd++;
 if (keys['KeyS']) fwd--;
@@ -4308,8 +4339,10 @@ if (flyMode) {
   camera.position.x += (camDir.x * fwd + rightVec.x * right) * flySpd;
   camera.position.y += camDir.y * fwd * flySpd;
   camera.position.z += (camDir.z * fwd + rightVec.z * right) * flySpd;
-  if (!MOBILE && (keys['ShiftLeft'] || keys['ShiftRight'])) camera.position.y -= 5 * dt;
-  if (MOBILE && jumpBtnHeld) camera.position.y -= 4 * dt;
+  if (!MOBILE && (keys['ShiftLeft'] || keys['ShiftRight'])) camera.position.y -= 5 * dt; // shift = descend
+  if (!MOBILE && keys['Space']) camera.position.y += 5 * dt;                              // hold space = ascend
+  if (MOBILE && flyUpHeld) camera.position.y += 4 * dt;                                   // up arrow = ascend
+  if (MOBILE && jumpBtnHeld) camera.position.y -= 4 * dt;                                 // down arrow = descend
   var flyFloor = getHeight(camera.position.x, camera.position.z) + 2.5;
   if (camera.position.y <= flyFloor) {
     camera.position.y = flyFloor;
@@ -4344,6 +4377,7 @@ if (flyMode) {
       if (bounceV > 0.8) {
         velY = bounceV;
       } else {
+        playLandThud(Math.abs(velY));
         velY = 0;
         playerJumping = false;
         playerGrounded = true;

@@ -742,7 +742,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.34</div>
+<div id="version-tag">v7.35</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
@@ -1022,7 +1022,9 @@ const bioMaterials = [];
 const WATER_LEVEL = 3.0;
 
 // ── Chunks ─────────────────────────────────────────────────────
-const CS = 32, CR = MOBILE ? 18 : 26, RD = MOBILE ? 2 : 3;
+const CS = 32, CR = MOBILE ? 18 : 26;
+const RD_BASE = MOBILE ? 2 : 3, RD_FLY = MOBILE ? 3 : 5; // wider terrain ring while flying
+let RD = RD_BASE;
 const chunks = new Map();
 
 function buildChunk(cx, cz) {
@@ -1244,6 +1246,9 @@ function chunkKey(cx, cz) { return cx + ',' + cz; }
 let lastCX = null, lastCZ = null;
 
 function updateChunks() {
+// Flying loads a wider ring so you can see further; force a rebuild when it changes
+const targetRD = flyMode ? RD_FLY : RD_BASE;
+if (targetRD !== RD) { RD = targetRD; lastCX = null; lastCZ = null; }
 const cx = Math.floor(camera.position.x / CS);
 const cz = Math.floor(camera.position.z / CS);
 if (cx === lastCX && cz === lastCZ) return;
@@ -1917,6 +1922,7 @@ var jumpHeld = false;
 var jumpHeldTime = 0;
 var jumpSprint = false;
 var flyMode = false;
+var flyView = 0; // 0..1 smooth blend toward the wider flying view
 var lastSpaceTime = 0;
 var jumpBtnHeld = false;
 var flyUpHeld = false; // mobile fly-up (ascend) button held
@@ -5278,6 +5284,10 @@ if (stormI > 0.01) {
 scene.fog.color.lerp(stormDarkColor, stormI * 0.35);
 scene.fog.far = BASE_FOG_FAR * (1 - stormI * 0.3);
 }
+
+// Flying: smoothly push the fog out so the wider terrain ring is visible
+flyView += ((flyMode ? 1 : 0) - flyView) * 0.05;
+if (flyView > 0.001) scene.fog.far *= (1 + flyView * 0.8);
 
 // Movement
 doMove(dt);

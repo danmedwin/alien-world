@@ -33,8 +33,8 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 #fh-horizon text { font-family:monospace;font-size:11px;fill:rgba(150,235,205,0.6); }
 #jump-btn { display:none;position:absolute;bottom:123px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(180,140,255,0.18);border:1.5px solid rgba(200,170,255,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
 #jump-btn:active { background:rgba(180,140,255,0.35); }
-#fly-up-btn { display:none;position:absolute;bottom:185px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(140,255,180,0.16);border:1.5px solid rgba(170,255,200,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
-#fly-up-btn:active { background:rgba(140,255,180,0.32); }
+#fly-down-btn { display:none;position:absolute;bottom:185px;right:24px;width:54px;height:54px;border-radius:50%;background:rgba(180,140,255,0.18);border:1.5px solid rgba(200,170,255,0.45);touch-action:none;z-index:10;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none; }
+#fly-down-btn:active { background:rgba(180,140,255,0.35); }
 #joystick-zone { position:absolute;bottom:90px;left:24px;width:120px;height:120px;display:none;touch-action:none;z-index:10; }
 #joystick-base { width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(200,170,255,0.25);position:relative; }
 #joystick-thumb { width:46px;height:46px;border-radius:50%;background:rgba(180,140,255,0.25);border:1.5px solid rgba(200,170,255,0.45);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
@@ -764,12 +764,12 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 <button id="startBtn">ENTER WORLD</button>
 <button id="continueBtn">Continue</button>
 <div id="hint">Desktop: WASD + mouse look<br>Mobile: drag right side to look, joystick to move</div>
-<div id="version-tag">v7.37</div>
+<div id="version-tag">v7.38</div>
 </div>
 </div>
 <div id="joystick-zone"><div id="joystick-base"><div id="joystick-thumb"></div></div></div>
 <div id="jump-btn"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-<div id="fly-up-btn"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(170,255,200,0.85)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+<div id="fly-down-btn"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,8 12,17 20,8" stroke="rgba(200,170,255,0.85)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
 <div id="underwater-overlay"></div>
 
 <div id="hotbar">
@@ -1903,7 +1903,7 @@ document.addEventListener('keydown', e => {
       if (!flyMode && playerGrounded) {
         var isSprint = sprintActive;
         jumpSprint = isSprint;
-        playerJumping = true; playerGrounded = false;
+        playerJumping = true; playerGrounded = false; landThudPlayed = false;
         velY = 3.5 * (isSprint ? 1.2 : 1.0);
         jumpHeld = true; jumpHeldTime = 0;
       }
@@ -1947,7 +1947,9 @@ var flyMode = false;
 var flyView = 0; // 0..1 smooth blend toward the wider flying view
 var lastSpaceTime = 0;
 var jumpBtnHeld = false;
-var flyUpHeld = false; // mobile fly-up (ascend) button held
+var flyUpHeld = false, flyDownHeld = false; // mobile ascend (bottom btn) / descend (upper btn)
+var lastDownTapTime = 0;   // double-tap detection on the descend button
+var landThudPlayed = false; // ensures the thud fires on first ground contact only
 var sprintActive = false, wTapTime = 0; // desktop sprint = double-tap W (held)
 var beaconPillarParticles = null;
 var scannerPillarMesh = null, scannerPillarCore = null, scannerPillarGlow = null, scannerPillarParticles = null;
@@ -1971,10 +1973,10 @@ function playFlyPowerDown() {
   thud.connect(thudG); thudG.connect(ctx.destination); thud.start(t + dur * 0.7); thud.stop(t + dur + 0.1);
 }
 function deactivateFlyMode() {
-  flyMode = false; jumpHeld = false; jumpBtnHeld = false;
+  flyMode = false; jumpHeld = false; jumpBtnHeld = false; flyUpHeld = false; flyDownHeld = false;
   var floorY = getHeight(camera.position.x, camera.position.z) + 2.5;
   if (camera.position.y > floorY + 0.3) {
-    playerJumping = true; playerGrounded = false; velY = 0;
+    playerJumping = true; playerGrounded = false; velY = 0; landThudPlayed = false;
   } else {
     playerJumping = false; playerGrounded = true; velY = 0;
   }
@@ -1983,15 +1985,11 @@ function deactivateFlyMode() {
   playFlyPowerDown();
 }
 function updateJumpBtnIcon() {
-  var btn = document.getElementById('jump-btn'); if (!btn) return;
-  if (flyMode) {
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,8 12,17 20,8" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  } else {
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4,16 12,7 20,16" stroke="rgba(200,170,255,0.8)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  }
-  // Mobile ascend button only while flying
-  var upBtn = document.getElementById('fly-up-btn');
-  if (upBtn) upBtn.style.display = (flyMode && MOBILE) ? 'flex' : 'none';
+  // The bottom button is always the up arrow (jump on ground / ascend while
+  // flying) and never moves. The descend (down) button appears above it
+  // only while flying.
+  var downBtn = document.getElementById('fly-down-btn');
+  if (downBtn) downBtn.style.display = (flyMode && MOBILE) ? 'flex' : 'none';
 }
 var _audioCtx = null;
 function getOrCreateAudioCtx() {
@@ -4473,8 +4471,8 @@ if (flyMode) {
   camera.position.z += (camDir.z * fwd + rightVec.z * right) * flySpd;
   if (!MOBILE && (keys['ShiftLeft'] || keys['ShiftRight'])) camera.position.y -= 5 * dt; // shift = descend
   if (!MOBILE && keys['Space']) camera.position.y += 5 * dt;                              // hold space = ascend
-  if (MOBILE && flyUpHeld) camera.position.y += 4 * dt;                                   // up arrow = ascend
-  if (MOBILE && jumpBtnHeld) camera.position.y -= 4 * dt;                                 // down arrow = descend
+  if (MOBILE && flyUpHeld) camera.position.y += 4 * dt;                                   // bottom up-arrow = ascend
+  if (MOBILE && flyDownHeld) camera.position.y -= 4 * dt;                                 // upper down-arrow = descend
   var flyFloor = getHeight(camera.position.x, camera.position.z) + 2.5;
   if (camera.position.y <= flyFloor) {
     camera.position.y = flyFloor;
@@ -4508,11 +4506,12 @@ if (flyMode) {
     if (camera.position.y <= ty) {
       camera.position.y = ty;
       jumpHeld = false;
+      // Thud on the very first ground contact, not after the bounce settles
+      if (!landThudPlayed) { playLandThud(Math.abs(velY)); landThudPlayed = true; }
       var bounceV = Math.abs(velY) * 0.22;
       if (bounceV > 0.8) {
         velY = bounceV;
       } else {
-        playLandThud(Math.abs(velY));
         velY = 0;
         playerJumping = false;
         playerGrounded = true;
@@ -4545,43 +4544,49 @@ if (MOBILE) {
   var flyInd = document.getElementById('fly-indicator');
   if (flyInd) flyInd.textContent = '✦ FLYING — double-tap ↓ to land';
 }
-// Mobile ascend button (hold to rise while flying)
-var flyUpBtn = document.getElementById('fly-up-btn');
-if (flyUpBtn) {
-  flyUpBtn.addEventListener('touchstart', function(e) { e.preventDefault(); if (flyMode) flyUpHeld = true; }, { passive: false });
-  flyUpBtn.addEventListener('touchend', function() { flyUpHeld = false; }, { passive: true });
-  flyUpBtn.addEventListener('touchcancel', function() { flyUpHeld = false; }, { passive: true });
-}
 
 // Mobile jump button
 var jumpBtn = document.getElementById('jump-btn');
+// Bottom button (up arrow, never moves): on ground tap=jump / double-tap=fly;
+// while flying hold to ascend.
 jumpBtn.addEventListener('touchstart', function(e) {
   e.preventDefault();
   if (!started) return;
   var spaceNow = Date.now();
-  if (spaceNow - lastSpaceTime < 350) {
-    if (flyMode) {
-      deactivateFlyMode();
-    } else {
-      flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
-      document.getElementById('fly-indicator').style.display = 'block';
-      playFlyPowerUp(); updateJumpBtnIcon();
-    }
+  if (!flyMode && spaceNow - lastSpaceTime < 350) {
+    // double-tap on the ground → enter fly
+    flyMode = true; velY = 0; playerJumping = false; jumpHeld = false; playerGrounded = false;
+    document.getElementById('fly-indicator').style.display = 'block';
+    playFlyPowerUp(); updateJumpBtnIcon();
     lastSpaceTime = 0;
   } else {
     if (flyMode) {
-      jumpBtnHeld = true;
+      flyUpHeld = true; // hold to ascend
     } else if (playerGrounded) {
       jumpSprint = jSprinting;
-      playerJumping = true; playerGrounded = false;
+      playerJumping = true; playerGrounded = false; landThudPlayed = false;
       velY = 3.5 * (jSprinting ? 1.2 : 1.0);
       jumpHeld = true; jumpHeldTime = 0;
     }
     lastSpaceTime = spaceNow;
   }
 }, { passive: false });
-jumpBtn.addEventListener('touchend',    function() { jumpHeld = false; jumpBtnHeld = false; }, { passive: true });
-jumpBtn.addEventListener('touchcancel', function() { jumpHeld = false; jumpBtnHeld = false; }, { passive: true });
+jumpBtn.addEventListener('touchend',    function() { jumpHeld = false; flyUpHeld = false; }, { passive: true });
+jumpBtn.addEventListener('touchcancel', function() { jumpHeld = false; flyUpHeld = false; }, { passive: true });
+
+// Upper button (down arrow, flying only): hold to descend, double-tap to land
+var flyDownBtn = document.getElementById('fly-down-btn');
+if (flyDownBtn) {
+  flyDownBtn.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    if (!flyMode) return;
+    var dnNow = Date.now();
+    if (dnNow - lastDownTapTime < 350) { deactivateFlyMode(); lastDownTapTime = 0; }
+    else { flyDownHeld = true; lastDownTapTime = dnNow; }
+  }, { passive: false });
+  flyDownBtn.addEventListener('touchend',    function() { flyDownHeld = false; }, { passive: true });
+  flyDownBtn.addEventListener('touchcancel', function() { flyDownHeld = false; }, { passive: true });
+}
 
 function openMenu() {
 menuOpen = true;

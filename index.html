@@ -532,6 +532,26 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
   width:100%; height:100%;
   pointer-events:none;
 }
+#held-flashlight-wrap {
+  display:none;
+  position:absolute;
+  width:300px;
+  height:460px;
+  pointer-events:auto;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  cursor:grab;
+  transform-origin:top left;
+  z-index:30;
+}
+#held-flashlight-wrap:active { cursor:grabbing; }
+#held-flashlight-canvas {
+  position:absolute;
+  top:0; left:0;
+  width:100%; height:100%;
+  pointer-events:none;
+}
 #locator-reset-btn {
   position:absolute;
   top:120px; right:8px;
@@ -817,6 +837,7 @@ html,body { width:100%;height:100%;overflow:hidden;background:#000;font-family:m
 </div>
 <div id="held-device-wrap"><canvas id="held-device-canvas"></canvas><button id="device-reset-btn" title="Reset position &amp; size">↺</button></div>
 <div id="held-locator-wrap"><canvas id="held-locator-canvas"></canvas><button id="locator-reset-btn" title="Reset position &amp; size">↺</button></div>
+<div id="held-flashlight-wrap"><canvas id="held-flashlight-canvas"></canvas></div>
 
 <div id="waypoint-panel">
   <div id="waypoint-panel-header">LOCATIONS</div>
@@ -1838,15 +1859,12 @@ function showPickupNotification(text) {
 }
 
 function selectSlot(i) {
-  const currentItem = inventory[activeSlot];
-  if (currentItem && currentItem.active && currentItem.onDeactivate) {
-    currentItem.onDeactivate();
-    currentItem.active = false;
-  }
+  // Toggle system: selecting a slot turns its item on (if auto-activating) without
+  // switching any other active items off — multiple held devices can show at once.
   activeSlot = i;
   updateHotbarUI();
   const newItem = inventory[i];
-  if (newItem && newItem.autoActivate && !newItem.active) useActiveItem();
+  if (newItem && newItem.autoActivate && !newItem.active && newItem.onUse) { newItem.onUse(); updateHotbarUI(); }
 }
 
 function useActiveItem() {
@@ -1860,11 +1878,7 @@ function useActiveItem() {
 document.addEventListener('keydown', e => {
   if (e.code >= 'Digit1' && e.code <= 'Digit6') {
     var slotNum = parseInt(e.code.charAt(5)) - 1;
-    if (activeSlot === slotNum && inventory[slotNum]) {
-      useActiveItem(); // same key again = activate/cycle
-    } else {
-      selectSlot(slotNum);
-    }
+    if (inventory[slotNum]) { activeSlot = slotNum; if (inventory[slotNum].onUse) { inventory[slotNum].onUse(); updateHotbarUI(); } }
   }
   if (e.code === 'KeyF') useActiveItem();
   if (e.code === 'KeyM' && started) {
@@ -1920,11 +1934,8 @@ hotbarSlots.forEach((slot, i) => {
   function handleSlotTap() {
     var item = inventory[i];
     if (!item) return;
-    if (activeSlot === i) {
-      useActiveItem();
-    } else {
-      selectSlot(i); // auto-activates if item.autoActivate is set
-    }
+    activeSlot = i;
+    if (item.onUse) { item.onUse(); updateHotbarUI(); }  // each tap toggles this item independently
   }
   slot.addEventListener('click', e => { e.stopPropagation(); handleSlotTap(); });
   slot.addEventListener('touchend', e => { e.stopPropagation(); e.preventDefault(); handleSlotTap(); }, { passive: false });
@@ -2273,8 +2284,11 @@ scene.add(beaconBeamGroup);
 // ── Chip Pickup Objects (add waypoints when collected) ────────
 var chipDefs = [
   { x: 80, z: 80, name: 'Ridge Signal', targetX: 200, targetZ: -100, color: '#ff8800' },
-  { x: -60, z: 100, name: 'Valley Signal', targetX: -180, targetZ: 180, color: '#44aaff' }
+  { x: -60, z: 100, name: 'Valley Signal', targetX: -180, targetZ: 180, color: '#44aaff' },
+  { x: 149.7, z: 158.5, name: 'Derelict Outpost', targetX: 330, targetZ: 320, color: '#cc66ff', hidden: true }
 ];
+var wallChipIdx = chipDefs.length - 1;
+var wallChipRevealed = false;
 var chipMeshes = [];
 var chipsPickedUp = [];
 for (var chipI = 0; chipI < chipDefs.length; chipI++) {
@@ -2288,6 +2302,7 @@ for (var chipI = 0; chipI < chipDefs.length; chipI++) {
   var chipGlow = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.35), chipGlowMat);
   chipGlow.position.set(cd.x, chipTerrY + 0.15, cd.z);
   scene.add(chipGlow);
+  if (cd.hidden) { chipMesh.visible = false; chipGlow.visible = false; }
   chipMeshes.push({ mesh: chipMesh, glow: chipGlow, glowMat: chipGlowMat, mat: chipMat, def: cd });
   chipsPickedUp.push(false);
 }
@@ -2411,6 +2426,414 @@ for (var dbi=0; dbi<12; dbi++) {
   dbm.rotation.set(uhash(dbi*907,dbi*1009)*Math.PI, uhash(dbi*1103,dbi*1201)*Math.PI, 0);
   scene.add(dbm);
 }
+
+// ── Derelict Alien Outpost (far landmark; multi-room, explorable) ──
+var OUTPOST_X = 330, OUTPOST_Z = 320;
+var outpostTerrY = getHeight(OUTPOST_X, OUTPOST_Z);
+var OUTPOST_FLOOR_Y = outpostTerrY + 2.4;        // plinth top = interior floor level
+var OP_WALL_H = 4.0;
+var OP_WALL_TOP = OUTPOST_FLOOR_Y + OP_WALL_H;
+
+var opStoneMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.20, 0.23, 0.21) });
+var opTrimMat  = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.12, 0.14, 0.15) });
+var opGlowMat  = new THREE.MeshBasicMaterial({ color: 0x55ffcc, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+
+// Foundation plinth (buried base rising to the floor level)
+var opPlinth = new THREE.Mesh(new THREE.BoxGeometry(17.5, 6, 17.5), opStoneMat);
+opPlinth.position.set(OUTPOST_X, OUTPOST_FLOOR_Y - 3, OUTPOST_Z);
+opPlinth.userData = {scanType:'structure', species:'Derelict Outpost', desc:'Abandoned alien forward outpost, long since fallen silent', traits:'Pre-colonial | Structural decay | Power: trace'};
+scene.add(opPlinth);
+
+// Interior floor slab
+var opFloor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.2, 16), opTrimMat);
+opFloor.position.set(OUTPOST_X, OUTPOST_FLOOR_Y + 0.1, OUTPOST_Z);
+scene.add(opFloor);
+// Standable interior floor (used by getFloorTop)
+wallColliders.push({
+  minX: OUTPOST_X - 7.75, maxX: OUTPOST_X + 7.75,
+  minZ: OUTPOST_Z - 7.75, maxZ: OUTPOST_Z + 7.75,
+  topY: OUTPOST_FLOOR_Y
+});
+
+// Wall helper: local coords, w along X, d along Z, height h; adds mesh + collider
+function opAddWall(lx, lz, w, d, h, scan) {
+  var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), opStoneMat);
+  m.position.set(OUTPOST_X + lx, OUTPOST_FLOOR_Y + h / 2, OUTPOST_Z + lz);
+  if (scan) m.userData = scan;
+  scene.add(m);
+  wallColliders.push({
+    minX: OUTPOST_X + lx - w / 2, maxX: OUTPOST_X + lx + w / 2,
+    minZ: OUTPOST_Z + lz - d / 2, maxZ: OUTPOST_Z + lz + d / 2,
+    topY: OUTPOST_FLOOR_Y + h
+  });
+  return m;
+}
+var opWallScan = {scanType:'structure', species:'Outpost Bulkhead', desc:'Load-bearing alien masonry, fractured by age', traits:'Weathered | Non-native alloy lattice'};
+
+// Outer shell (wall thickness 0.5). Entrance doorway gap in south wall: x in [-1.5, 1.5]
+opAddWall(0, 8, 16.5, 0.5, OP_WALL_H, opWallScan);      // north
+opAddWall(-4.75, -8, 6.5, 0.5, OP_WALL_H, opWallScan);  // south-left
+opAddWall(4.75, -8, 6.5, 0.5, OP_WALL_H, opWallScan);   // south-right
+opAddWall(-8, 0, 0.5, 16.5, OP_WALL_H, opWallScan);     // west
+opAddWall(8, -5.25, 0.5, 5.5, OP_WALL_H, opWallScan);   // east-south
+opAddWall(8, 5.25, 0.5, 5.5, OP_WALL_H, opWallScan);    // east-north
+opAddWall(8, 0, 0.5, 4.5, 1.6);                          // east-mid: collapsed/low section
+
+// Lintel over the entrance (visual only, no collider so you walk under it)
+var opLintel = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.8, 0.5), opStoneMat);
+opLintel.position.set(OUTPOST_X, OUTPOST_FLOOR_Y + OP_WALL_H - 0.4, OUTPOST_Z - 8);
+scene.add(opLintel);
+
+// Internal partition A (z=0) with doorway at x=-4 (gap x in [-5.5,-2.5])
+opAddWall(-6.75, 0, 2.5, 0.5, OP_WALL_H);
+opAddWall(2.75, 0, 10.5, 0.5, OP_WALL_H);
+// Internal partition B (x=2, back half) with doorway at z=4 (gap z in [2.5,5.5])
+opAddWall(2, 1.25, 0.5, 2.5, OP_WALL_H);
+opAddWall(2, 6.75, 0.5, 2.5, OP_WALL_H);
+
+// Entrance steps up the south side (terrain -> plinth top)
+var opStairBaseY = getHeight(OUTPOST_X, OUTPOST_Z - 12);
+for (var ops = 0; ops < 5; ops++) {
+  var opFrac = (ops + 1) / 5;
+  var opStepTop = opStairBaseY + (OUTPOST_FLOOR_Y - opStairBaseY) * opFrac;
+  var opSz = -12 + ops * 1.0;
+  var opSm = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 1.0), opStoneMat);
+  opSm.position.set(OUTPOST_X, opStepTop - 0.25, OUTPOST_Z + opSz);
+  scene.add(opSm);
+  wallColliders.push({
+    minX: OUTPOST_X - 2, maxX: OUTPOST_X + 2,
+    minZ: OUTPOST_Z + opSz - 0.5, maxZ: OUTPOST_Z + opSz + 0.5,
+    topY: opStepTop
+  });
+}
+
+// Roof: front hall + back-east chamber covered; back-west chamber collapsed (open to sky)
+var opRoofA = new THREE.Mesh(new THREE.BoxGeometry(16.5, 0.4, 8.2), opStoneMat);
+opRoofA.position.set(OUTPOST_X, OP_WALL_TOP + 0.2, OUTPOST_Z - 4);
+scene.add(opRoofA);
+var opRoofB = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.4, 8.2), opStoneMat);
+opRoofB.position.set(OUTPOST_X + 5, OP_WALL_TOP + 0.2, OUTPOST_Z + 4);
+scene.add(opRoofB);
+
+// Roof surfaces the player can stand on. These are stand-only (checked by roofTopAt,
+// NOT by checkWallCollision) so they never block movement in the room below them.
+var outpostRoofs = [
+  { minX: OUTPOST_X - 8.25, maxX: OUTPOST_X + 8.25, minZ: OUTPOST_Z - 8.1, maxZ: OUTPOST_Z + 0.1, topY: OP_WALL_TOP + 0.4 },
+  { minX: OUTPOST_X + 1.9,  maxX: OUTPOST_X + 8.1,  minZ: OUTPOST_Z - 0.1, maxZ: OUTPOST_Z + 8.1, topY: OP_WALL_TOP + 0.4 }
+];
+function roofTopAt(x, z, feetY) {
+  var top = -Infinity;
+  for (var ri = 0; ri < outpostRoofs.length; ri++) {
+    var c = outpostRoofs[ri];
+    if (x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ && feetY >= c.topY - 0.6) {
+      if (c.topY > top) top = c.topY;
+    }
+  }
+  return top;
+}
+
+// Exposed rafters spanning the collapsed back-west chamber — reach wall to wall for support
+var opRaftX = [-6, -3, 0];
+for (var opb = 0; opb < opRaftX.length; opb++) {
+  var opBeam = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 8.4), opTrimMat);
+  opBeam.position.set(OUTPOST_X + opRaftX[opb], OP_WALL_TOP + 0.15, OUTPOST_Z + 4);  // rests on partition A and the north wall
+  scene.add(opBeam);
+}
+var opTie = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.28, 0.28), opTrimMat);
+opTie.position.set(OUTPOST_X - 3, OP_WALL_TOP + 0.15, OUTPOST_Z + 4);
+scene.add(opTie);
+
+// Command terminal in the back-east chamber (scannable, faintly lit)
+var opConsole = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.8), opTrimMat);
+opConsole.position.set(OUTPOST_X + 5, OUTPOST_FLOOR_Y + 0.5, OUTPOST_Z + 6);
+opConsole.userData = {scanType:'structure', species:'Command Terminal', desc:'Dormant control console; a faint power signature persists', traits:'Active | Encrypted | Unknown protocol'};
+scene.add(opConsole);
+var opScreen = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.6), opGlowMat);
+opScreen.position.set(OUTPOST_X + 5, OUTPOST_FLOOR_Y + 0.7, OUTPOST_Z + 5.58);
+scene.add(opScreen);
+var opLight = new THREE.PointLight(0x55ffcc, 0.8, 16);
+opLight.position.set(OUTPOST_X + 5, OUTPOST_FLOOR_Y + 1.8, OUTPOST_Z + 4);
+scene.add(opLight);
+
+// Rubble strewn through the collapsed back-west chamber
+for (var opr = 0; opr < 10; opr++) {
+  var opRa = uhash(opr * 53 + 7, opr * 97 + 3);
+  var opRb = uhash(opr * 131 + 5, opr * 61 + 9);
+  var opRs = 0.3 + uhash(opr * 29 + 1, opr * 43 + 2) * 0.6;
+  var opRub = new THREE.Mesh(new THREE.BoxGeometry(opRs, opRs * 0.7, opRs * 0.9), opStoneMat);
+  opRub.position.set(OUTPOST_X + (-6 + opRa * 7), OUTPOST_FLOOR_Y + opRs * 0.35, OUTPOST_Z + (1 + opRb * 6));
+  opRub.rotation.set(opRa * Math.PI, opRb * Math.PI, opRa * opRb * Math.PI);
+  scene.add(opRub);
+}
+
+// Toppled marker pylon beside the entrance
+var opCol = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 5, 8), opStoneMat);
+opCol.position.set(OUTPOST_X - 6, OUTPOST_FLOOR_Y + 2.0, OUTPOST_Z - 10);
+opCol.rotation.z = 0.35;
+opCol.userData = {scanType:'structure', species:'Toppled Pylon', desc:'Fallen perimeter marker pylon', traits:'Weathered | Inert'};
+scene.add(opCol);
+
+// Keeps the player standing on the flat plinth floor inside the shell
+function opInsideInterior(x, z) {
+  return x > OUTPOST_X - 7.7 && x < OUTPOST_X + 7.7 &&
+         z > OUTPOST_Z - 7.7 && z < OUTPOST_Z + 7.7;
+}
+
+// ── Flashlight: world pickup in the outpost back-east chamber ──────
+var flashlightOwned = false, flashlightPickedUp = false;
+var FLASH_PICK = { x: OUTPOST_X + 5, z: OUTPOST_Z + 4 };
+var flMatBody = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.5, 0.5, 0.55), emissive: new THREE.Color(0.07, 0.07, 0.05) });
+var flWorld = new THREE.Group();
+var flWB = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.42, 12), flMatBody); flWB.rotation.z = Math.PI / 2; flWorld.add(flWB);
+var flWH = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.09, 0.16, 12), flMatBody); flWH.rotation.z = Math.PI / 2; flWH.position.x = 0.27; flWorld.add(flWH);
+var flWLens = new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), new THREE.MeshBasicMaterial({ color: 0xfff2c0 })); flWLens.rotation.y = Math.PI / 2; flWLens.position.x = 0.355; flWorld.add(flWLens);
+flWorld.position.set(FLASH_PICK.x, OUTPOST_FLOOR_Y + 1.2, FLASH_PICK.z);
+flWorld.userData = { scanType: 'structure', species: 'Lumen Torch', desc: 'Alien hand light, still holding a charge', traits: 'Functional | Rechargeable cell' };
+scene.add(flWorld);
+var flWorldGlow = new THREE.PointLight(0xfff0c0, 1.4, 7); flWorldGlow.position.set(FLASH_PICK.x, OUTPOST_FLOOR_Y + 1.2, FLASH_PICK.z); scene.add(flWorldGlow);
+var flPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 20, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff0c0, transparent: true, opacity: 0.10, side: THREE.DoubleSide }));
+flPillar.position.set(FLASH_PICK.x, OUTPOST_FLOOR_Y + 10, FLASH_PICK.z); scene.add(flPillar);
+
+// ── Flashlight beam (camera-attached spotlight) ──────────────────
+var flashBlueOn = true, flashRedOn = false;   // blue button -> wide beam, red button -> focused spot
+var FLASH_WIDE = { angle: 1.14, intensity: 4.1, distance: 30, penumbra: 0.5,  color: new THREE.Color('#c2ebff') };
+var FLASH_SPOT = { angle: 0.20, intensity: 5.0, distance: 40, penumbra: 0.12, color: new THREE.Color('#bdfeff') };
+var flashSpotWide = null, flashSpotSpot = null, flashSpotInit = false, flashlightDeviceActive = false;
+var heldFlashBlueBtn = null, heldFlashRedBtn = null;
+function initFlashBeam() {
+  if (flashSpotInit) return; flashSpotInit = true;
+  flashSpotWide = new THREE.SpotLight(FLASH_WIDE.color.getHex(), 0, FLASH_WIDE.distance, FLASH_WIDE.angle, FLASH_WIDE.penumbra, 1.0);
+  flashSpotWide.target = new THREE.Object3D();
+  flashSpotSpot = new THREE.SpotLight(FLASH_SPOT.color.getHex(), 0, FLASH_SPOT.distance, FLASH_SPOT.angle, FLASH_SPOT.penumbra, 1.0);
+  flashSpotSpot.target = new THREE.Object3D();
+  scene.add(flashSpotWide); scene.add(flashSpotWide.target);
+  scene.add(flashSpotSpot); scene.add(flashSpotSpot.target);
+}
+function updateFlashBeam() {
+  if (!flashSpotWide) return;
+  camera.updateMatrixWorld();
+  // Lens-forward in the widget's view frame, after the model's free rotation
+  var lf = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(flashRotX, flashRotY, 0, 'XYZ'));
+  // Map that into world space using the player's camera basis (so the beam matches the lens)
+  var e = camera.matrixWorld.elements;
+  var camRight = new THREE.Vector3(e[0], e[1], e[2]);
+  var camUp    = new THREE.Vector3(e[4], e[5], e[6]);
+  var camFwd   = new THREE.Vector3(-e[8], -e[9], -e[10]);
+  var aim = new THREE.Vector3()
+    .addScaledVector(camRight, lf.x)
+    .addScaledVector(camUp, lf.y)
+    .addScaledVector(camFwd, -lf.z);
+  var tx = camera.position.x + aim.x * 5, ty = camera.position.y + aim.y * 5, tz = camera.position.z + aim.z * 5;
+  flashSpotWide.position.copy(camera.position); flashSpotWide.target.position.set(tx, ty, tz);
+  flashSpotSpot.position.copy(camera.position); flashSpotSpot.target.position.set(tx, ty, tz);
+  var on = flashlightDeviceActive;
+  flashSpotWide.intensity = (on && flashBlueOn) ? FLASH_WIDE.intensity : 0;  // blue button
+  flashSpotSpot.intensity = (on && flashRedOn) ? FLASH_SPOT.intensity : 0;   // red button
+}
+
+var flashlightItem = {
+  name: 'Light', icon: '\u{1F526}', autoActivate: true, active: false,
+  onUse: function () {
+    if (this.active) {
+      this.active = false; flashlightDeviceActive = false;
+      var w = document.getElementById('held-flashlight-wrap'); if (w) w.style.display = 'none';
+      showPickupNotification('Light controls stowed');
+    } else {
+      this.active = true; flashlightDeviceActive = true;
+      if (!heldFlashRenderer) initHeldFlashlight();
+      var w = document.getElementById('held-flashlight-wrap'); if (w) w.style.display = 'block';
+      flashScreenDirty = true;
+      showPickupNotification('Light controls');
+    }
+  },
+  onDeactivate: function () {
+    this.active = false; flashlightDeviceActive = false;
+    var w = document.getElementById('held-flashlight-wrap'); if (w) w.style.display = 'none';
+  }
+};
+
+// ── Held flashlight device (3D model + canvas screen with two notched sliders) ──
+var heldFlashRenderer = null, heldFlashScene = null, heldFlashCamera = null, heldFlashWrap = null, heldFlashMesh = null;
+var heldFlashScreenCanvas = null, heldFlashScrCtx = null, heldFlashScreenTexture = null, heldFlashScreenMesh = null, heldFlashVTemp = null;
+var heldFlashAim = null, heldFlashLens = null, heldFlashBeamCone = null;
+var flashScreenDirty = true, flashScreenFrame = 0, flashInteractionInit = false;
+var flashRaycaster = null, flashNdc = null;
+var flashLeft = 20, flashTop = 80, flashScale = 1;
+var flashDragging = false, flashMoved = false, flashDownX = 0, flashDownY = 0, flashDownTime = 0;
+var flashDragStartX = 0, flashDragStartY = 0, flashDragStartLeft = 0, flashDragStartTop = 0;
+var flashRotX = 0, flashRotY = 0, flashRotating = false, flashRotStartX = 0, flashRotStartY = 0, flashRotStartRotX = 0, flashRotStartRotY = 0;
+var flashPinching = false, flashPinchDist0 = 0, flashPinchScale0 = 1, flashPinchMidX = 0, flashPinchMidY = 0, flashPinchLeft0 = 0, flashPinchTop0 = 0, flashLastTap = 0;
+
+function roundedBoxGeo() {
+  var sh = new THREE.Shape(); var w = 1, h = 1, r = 0.22, x = -w / 2, y = -h / 2;
+  sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r);
+  sh.lineTo(x + w, y + h - r); sh.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  sh.lineTo(x + r, y + h); sh.quadraticCurveTo(x, y + h, x, y + h - r);
+  sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y);
+  var g = new THREE.ExtrudeGeometry(sh, { depth: 0.7, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 4, steps: 1 });
+  g.center(); return g;
+}
+
+function initHeldFlashlight() {
+  var cv = document.getElementById('held-flashlight-canvas');
+  if (!cv || heldFlashRenderer) return;
+  var W = 300, H = 460;
+  heldFlashRenderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+  heldFlashRenderer.setPixelRatio(Math.min(3, Math.max(2, window.devicePixelRatio || 1)));
+  heldFlashRenderer.setSize(W, H, false);
+  heldFlashRenderer.setClearColor(0x000000, 0);
+  heldFlashScene = new THREE.Scene();
+  heldFlashWrap = document.getElementById('held-flashlight-wrap');
+  heldFlashVTemp = new THREE.Vector3();
+  heldFlashCamera = new THREE.PerspectiveCamera(50, W / H, 0.01, 20);
+  heldFlashCamera.position.set(0, 0.55, 1.95);
+  heldFlashCamera.lookAt(0, 0.40, 0);
+  heldFlashScene.add(new THREE.AmbientLight(0x6a6a72, 0.9));
+  var kL = new THREE.DirectionalLight(0xfff0e0, 1.0); kL.position.set(-1, 2.2, 2); heldFlashScene.add(kL);
+  var gL = new THREE.PointLight(0x88bbff, 0.5, 3.0); gL.position.set(0, 0.6, 1.2); heldFlashScene.add(gL);
+
+  function fxMat(color, emissive, emInt) {
+    return new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.5, metalness: 0.15,
+      emissive: new THREE.Color(emissive || '#000000'), emissiveIntensity: emInt || 0 });
+  }
+  var root = new THREE.Group();
+  heldFlashAim = new THREE.Group();
+  var fxPivot = new THREE.Group();
+  // Frame + lens
+  var fxFrame = new THREE.Mesh(roundedBoxGeo(), fxMat('#717a84'));
+  fxFrame.position.set(0, 1, 0); fxFrame.scale.set(1, 1, 0.5); fxPivot.add(fxFrame);
+  heldFlashLens = new THREE.Mesh(new THREE.SphereGeometry(0.6, 24, 18), fxMat('#4ea6fd', '#3996f3', 0.65));
+  heldFlashLens.position.set(0.062, 0.961, 0.137); heldFlashLens.scale.set(0.85, 0.85, 0.545); fxPivot.add(heldFlashLens);
+  // Buttons (glow when their light is on; tappable)
+  heldFlashBlueBtn = new THREE.Mesh(roundedBoxGeo(), fxMat('#0080ff', '#0080ff', 0));
+  heldFlashBlueBtn.position.set(-0.2, 1.3, -0.25); heldFlashBlueBtn.scale.set(0.25, -0.25, 0.05);
+  heldFlashBlueBtn.userData.flashBtn = 'blue'; fxPivot.add(heldFlashBlueBtn);
+  heldFlashRedBtn = new THREE.Mesh(roundedBoxGeo(), fxMat('#ff0000', '#ff0000', 0));
+  heldFlashRedBtn.position.set(0.249, 1.3, -0.25); heldFlashRedBtn.scale.set(0.25, 0.25, 0.05);
+  heldFlashRedBtn.userData.flashBtn = 'red'; fxPivot.add(heldFlashRedBtn);
+  // Indicator sphere + torus bezel
+  var fxInd = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 12), fxMat('#4ea6fd', '#3996f3', 1.15));
+  fxInd.position.set(-0.389, 1.374, 0.225); fxInd.scale.set(0.15, 0.15, 0.096); fxPivot.add(fxInd);
+  var fxTorus = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.18, 12, 24), fxMat('#535455'));
+  fxTorus.position.set(-0.390, 1.369, 0.216); fxTorus.scale.set(0.2, 0.2, 0.2); fxPivot.add(fxTorus);
+
+  heldFlashAim.add(fxPivot);
+  fxPivot.rotation.y = Math.PI;   // buttons face the player; lens (and beam) face away into the scene
+  // auto-centre + fit to the widget
+  var bb = new THREE.Box3().setFromObject(fxPivot);
+  var ctr = bb.getCenter(new THREE.Vector3()), size = bb.getSize(new THREE.Vector3());
+  fxPivot.position.sub(ctr);
+  heldFlashAim.scale.setScalar(0.8 / Math.max(size.x, size.y, size.z));
+  heldFlashAim.position.set(0, 0.45, 0.05);
+  root.add(heldFlashAim);
+
+  root.position.y = -0.10;
+  heldFlashScene.add(root);
+  heldFlashMesh = root;
+  initFlashInteraction();
+}
+
+
+function flashTapAt(clientX, clientY) {
+  if (!heldFlashBlueBtn || !heldFlashCamera) return;
+  if (!flashRaycaster) { flashRaycaster = new THREE.Raycaster(); flashNdc = new THREE.Vector2(); }
+  var cv = document.getElementById('held-flashlight-canvas'); var r = cv.getBoundingClientRect();
+  flashNdc.x = ((clientX - r.left) / r.width) * 2 - 1;
+  flashNdc.y = -((clientY - r.top) / r.height) * 2 + 1;
+  flashRaycaster.setFromCamera(flashNdc, heldFlashCamera);
+  var hits = flashRaycaster.intersectObjects([heldFlashBlueBtn, heldFlashRedBtn], false);
+  if (!hits.length) return;
+  var b = hits[0].object.userData.flashBtn;
+  if (b === 'blue') { flashBlueOn = !flashBlueOn; showPickupNotification(flashBlueOn ? 'Wide beam on' : 'Wide beam off'); }
+  else if (b === 'red') { flashRedOn = !flashRedOn; showPickupNotification(flashRedOn ? 'Spot beam on' : 'Spot beam off'); }
+  if (flashSpotWide) updateFlashBeam();
+}
+
+function flashApply() { if (!heldFlashWrap) return; heldFlashWrap.style.left = Math.round(flashLeft) + 'px'; heldFlashWrap.style.top = Math.round(flashTop) + 'px'; heldFlashWrap.style.transform = 'scale(' + flashScale + ')'; }
+function flashClamp(l, t, sc) { var m = 60; sc = Math.max(0.4, Math.min(2.5, sc)); l = Math.max(-300 * sc + m, Math.min(window.innerWidth - m, l)); t = Math.max(-460 * sc + m, Math.min(window.innerHeight - m, t)); return { left: l, top: t, scale: sc }; }
+function flashSetRot(rx, ry) { flashRotX = Math.max(-Math.PI, Math.min(Math.PI, rx)); flashRotY = Math.max(-Math.PI, Math.min(Math.PI, ry)); }
+function flashSave() { try { localStorage.setItem('kpx_flash', JSON.stringify({ l: flashLeft, t: flashTop, s: flashScale, rx: flashRotX, ry: flashRotY })); } catch (e) {} }
+function flashLoad() {
+  try { var raw = localStorage.getItem('kpx_flash'); if (raw) { var d = JSON.parse(raw); if (d.l !== undefined) flashLeft = d.l; if (d.t !== undefined) flashTop = d.t; if (d.s !== undefined) flashScale = d.s; if (d.rx !== undefined) flashRotX = d.rx; if (d.ry !== undefined) flashRotY = d.ry; return; } } catch (e) {}
+  flashLeft = 20; flashTop = Math.max(40, window.innerHeight - 520);
+}
+function flashReset() { flashScale = 1; flashRotX = 0; flashRotY = 0; flashLeft = 20; flashTop = Math.max(40, window.innerHeight - 520); flashApply(); flashSave(); }
+function initFlashInteraction() {
+  if (flashInteractionInit) return; flashInteractionInit = true;
+  var hw = document.getElementById('held-flashlight-wrap'); if (!hw) return;
+  flashLoad(); flashApply();
+
+  // Touch: 1 finger = rotate model / tap = press a button / double-tap = reset │ 2 fingers = move + pinch scale
+  hw.addEventListener('touchstart', function (e) {
+    e.stopPropagation();
+    if (e.touches.length === 1) {
+      flashRotating = true; flashPinching = false;
+      flashDownX = flashRotStartX = e.touches[0].clientX; flashDownY = flashRotStartY = e.touches[0].clientY;
+      flashRotStartRotX = flashRotX; flashRotStartRotY = flashRotY; flashMoved = false; flashDownTime = Date.now();
+      var nt = Date.now(); if (nt - flashLastTap < 300) { flashReset(); flashMoved = true; } flashLastTap = nt;
+    } else if (e.touches.length >= 2) {
+      flashRotating = false; flashPinching = true;
+      var t1 = e.touches[0], t2 = e.touches[1];
+      flashPinchDist0 = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      flashPinchScale0 = flashScale; flashPinchLeft0 = flashLeft; flashPinchTop0 = flashTop;
+      flashPinchMidX = (t1.clientX + t2.clientX) * 0.5; flashPinchMidY = (t1.clientY + t2.clientY) * 0.5;
+    }
+  }, { passive: false });
+  hw.addEventListener('touchmove', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    if (flashRotating && e.touches.length === 1) {
+      var dx = e.touches[0].clientX - flashRotStartX, dy = e.touches[0].clientY - flashRotStartY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) flashMoved = true;
+      flashSetRot(flashRotStartRotX + dy * 0.01, flashRotStartRotY + dx * 0.01); if (flashSpotWide) updateFlashBeam();
+    } else if (flashPinching && e.touches.length >= 2) {
+      var t1 = e.touches[0], t2 = e.touches[1];
+      var dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      var ns = Math.max(0.4, Math.min(2.5, flashPinchScale0 * dist / flashPinchDist0));
+      var ratio = ns / flashPinchScale0;
+      var c = flashClamp(flashPinchMidX + (flashPinchLeft0 - flashPinchMidX) * ratio, flashPinchMidY + (flashPinchTop0 - flashPinchMidY) * ratio, ns);
+      flashLeft = c.left; flashTop = c.top; flashScale = c.scale; flashApply();
+    }
+  }, { passive: false });
+  hw.addEventListener('touchend', function (e) {
+    e.stopPropagation();
+    if (e.touches.length === 0) {
+      if (flashRotating && !flashMoved && Date.now() - flashDownTime < 400) flashTapAt(flashDownX, flashDownY);
+      flashRotating = false; flashPinching = false; flashSave();
+    }
+  }, { passive: false });
+
+  // Mouse: left drag = rotate / click = press a button │ right drag = move widget │ wheel = scale │ dblclick = reset
+  hw.addEventListener('mousedown', function (e) {
+    e.stopPropagation();
+    if (e.button === 2) { flashDragging = true; flashDragStartX = e.clientX; flashDragStartY = e.clientY; flashDragStartLeft = flashLeft; flashDragStartTop = flashTop; }
+    else { flashRotating = true; flashDownX = flashRotStartX = e.clientX; flashDownY = flashRotStartY = e.clientY; flashRotStartRotX = flashRotX; flashRotStartRotY = flashRotY; flashMoved = false; flashDownTime = Date.now(); }
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (flashDragging) {
+      var c = flashClamp(flashDragStartLeft + (e.clientX - flashDragStartX), flashDragStartTop + (e.clientY - flashDragStartY), flashScale);
+      flashLeft = c.left; flashTop = c.top; flashApply();
+    } else if (flashRotating) {
+      var dx = e.clientX - flashRotStartX, dy = e.clientY - flashRotStartY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) flashMoved = true;
+      flashSetRot(flashRotStartRotX + dy * 0.01, flashRotStartRotY + dx * 0.01); if (flashSpotWide) updateFlashBeam();
+    }
+  });
+  document.addEventListener('mouseup', function (e) {
+    if (flashDragging) { flashDragging = false; flashSave(); }
+    if (flashRotating) { if (!flashMoved && Date.now() - flashDownTime < 400) flashTapAt(flashDownX, flashDownY); flashRotating = false; flashSave(); }
+  });
+  hw.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  hw.addEventListener('wheel', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    var ns = Math.max(0.4, Math.min(2.5, flashScale * (e.deltaY < 0 ? 1.1 : 0.909)));
+    var ratio = ns / flashScale;
+    var c = flashClamp(e.clientX + (flashLeft - e.clientX) * ratio, e.clientY + (flashTop - e.clientY) * ratio, ns);
+    flashLeft = c.left; flashTop = c.top; flashScale = c.scale; flashApply(); flashSave();
+  }, { passive: false });
+  hw.addEventListener('dblclick', function (e) { e.stopPropagation(); flashReset(); });
+}
+
+
 // ── Puzzle Rings on Central Platform ──────────────────────────
 var puzzleSolved = false;
 var ringAngles = [0, 0, 0];
@@ -2463,32 +2886,45 @@ function rotateRing(ringIndex) {
   }
 }
 
-// ── Hint on North Wall: three concentric rings with target notches ──
-// Single diagram on the center wall fragment showing all 3 rings + their target positions
-var hintDimMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.25 });
-var hintBrightMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.8 });
+// ── North-wall Clue Panel — opens on puzzle solve to reveal the chip ──
 var hintCenterX = ARTIFACT_X - 0.3;
 var hintCenterY = artifactTerrY + 2.5;
-var hintCenterZ = ARTIFACT_Z - 12.05 + 0.26;
-var hintRadii = [0.5, 0.35, 0.2]; // visual sizes on wall (outer, middle, inner)
+var hintCenterZ = ARTIFACT_Z - 12.05 + 0.26;   // wall face toward the player
+var hintRadii = [0.5, 0.35, 0.2];
 
+// Dark recess cut into the wall (revealed when the panel slides up)
+var clueRecess = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 0.35), new THREE.MeshBasicMaterial({ color: 0x05080a }));
+clueRecess.position.set(hintCenterX, hintCenterY, hintCenterZ - 0.30);
+scene.add(clueRecess);
+
+// The locator chip, glowing inside the recess (its mesh comes from the chip loop)
+var wallChipObj = chipMeshes[wallChipIdx];
+wallChipObj.mesh.position.set(hintCenterX, hintCenterY, hintCenterZ - 0.17);
+wallChipObj.glow.position.set(hintCenterX, hintCenterY, hintCenterZ - 0.17);
+var clueChipLight = new THREE.PointLight(0xcc66ff, 0, 4);
+clueChipLight.position.set(hintCenterX, hintCenterY, hintCenterZ - 0.05);
+scene.add(clueChipLight);
+
+// Sliding panel that carries the alignment diagram (the clue)
+var cluePanelGroup = new THREE.Group();
+cluePanelGroup.position.set(hintCenterX, hintCenterY, hintCenterZ);
+scene.add(cluePanelGroup);
+var cluePanelSlab = new THREE.Mesh(new THREE.BoxGeometry(1.12, 1.12, 0.08), new THREE.MeshLambertMaterial({ color: new THREE.Color(0.20, 0.15, 0.23) }));
+cluePanelSlab.userData = { scanType: 'structure', species: 'Sealed Panel', desc: 'A carved alignment diagram seals a recess in the wall', traits: 'Mechanism dormant | Responds to the rings' };
+cluePanelGroup.add(cluePanelSlab);
+var hintDimMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.5 });
+var hintBrightMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.9 });
 for (var hri = 0; hri < 3; hri++) {
-  // Dim ring outline
-  var hr = new THREE.Mesh(new THREE.TorusGeometry(hintRadii[hri], 0.015, 6, 16), hintDimMat);
-  hr.position.set(hintCenterX, hintCenterY, hintCenterZ);
-  // default orientation: flat in XY plane, facing Z (toward player)
-  scene.add(hr);
-  // Bright notch at target position
+  var hr = new THREE.Mesh(new THREE.TorusGeometry(hintRadii[hri], 0.018, 6, 20), hintDimMat);
+  hr.position.set(0, 0, 0.05); cluePanelGroup.add(hr);
   var tAngle = ringTargets[hri] * (Math.PI / 3);
-  var hNotch = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), hintBrightMat);
-  // On the wall face (XY plane, Z is wall face normal)
-  hNotch.position.set(
-    hintCenterX + Math.cos(tAngle) * hintRadii[hri],
-    hintCenterY - Math.sin(tAngle) * hintRadii[hri],
-    hintCenterZ
-  );
-  scene.add(hNotch);
+  var hNotch = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), hintBrightMat);
+  hNotch.position.set(Math.cos(tAngle) * hintRadii[hri], -Math.sin(tAngle) * hintRadii[hri], 0.06);
+  cluePanelGroup.add(hNotch);
 }
+var cluePanelClosedY = hintCenterY;
+var cluePanelOpenY = hintCenterY + 1.25;
+var cluePanelTargetY = cluePanelClosedY;
 
 // ── Tricorder Spawn + Pickup ─────────────────────────────────
 var tricorderSpawned = false;
@@ -2507,9 +2943,21 @@ function onPuzzleSolved() {
     ringNotches[fi].mat.opacity = 1.0;
   }
 
+  revealClueChip(false);
   setTimeout(function() {
     spawnTricorder();
   }, 2000);
+}
+
+function revealClueChip(snap) {
+  if (wallChipRevealed) { if (snap) cluePanelGroup.position.y = cluePanelOpenY; return; }
+  wallChipRevealed = true;
+  cluePanelTargetY = cluePanelOpenY;
+  if (snap) cluePanelGroup.position.y = cluePanelOpenY;
+  var wc = chipMeshes[wallChipIdx];
+  if (wc) { wc.mesh.visible = true; wc.glow.visible = true; }
+  if (clueChipLight) clueChipLight.intensity = 1.8;
+  showPickupNotification('The wall grinds open — a chip glows within');
 }
 
 function spawnTricorder() {
@@ -4490,6 +4938,8 @@ if (flyMode) {
   if (MOBILE && flyUpHeld) camera.position.y += 4 * dt;                                   // bottom up-arrow = ascend
   if (MOBILE && flyDownHeld) camera.position.y -= 4 * dt;                                 // upper down-arrow = descend
   var flyFloor = getHeight(camera.position.x, camera.position.z) + 2.5;
+  var flyRoof = roofTopAt(camera.position.x, camera.position.z, camera.position.y - 2.5);
+  if (flyRoof > -Infinity) flyFloor = Math.max(flyFloor, flyRoof + 2.5);
   if (camera.position.y <= flyFloor) {
     camera.position.y = flyFloor;
     deactivateFlyMode();
@@ -4509,9 +4959,16 @@ if (flyMode) {
   if (ruinDx * ruinDx + ruinDz * ruinDz < 20 * 20) {
     ty = Math.max(ty, artifactTerrY + 0.1 + 2.5);
   }
+  // Derelict outpost: stand on the plinth floor inside the shell
+  if (opInsideInterior(camera.position.x, camera.position.z)) {
+    ty = Math.max(ty, OUTPOST_FLOOR_Y + 2.5);
+  }
   // Stand on top of walls / platforms the player has cleared
   var wallTop = getFloorTop(camera.position.x, camera.position.z, camera.position.y - 2.5);
   if (wallTop > -Infinity) ty = Math.max(ty, wallTop + 2.5);
+  // Land on / walk across the outpost roof
+  var roofTop = roofTopAt(camera.position.x, camera.position.z, camera.position.y - 2.5);
+  if (roofTop > -Infinity) ty = Math.max(ty, roofTop + 2.5);
   if (playerJumping) {
     if (jumpHeld && jumpHeldTime < 0.45) {
       velY += 22 * (jumpSprint ? 1.4 : 1.0) * dt;
@@ -5187,6 +5644,9 @@ function saveGame() {
     puzzle: puzzleSolved,
     rings: [ringAngles[0], ringAngles[1], ringAngles[2]],
     chips: chipsPickedUp.slice(),
+    flashlight: flashlightPickedUp,
+    flBlue: flashBlueOn,
+    flRed: flashRedOn,
     time: timeOfDay,
     pins: pins,
     wpName: wpName
@@ -5228,6 +5688,16 @@ function applyLoadedState() {
     }
   }
 
+  // Flashlight
+  if (d.flashlight) {
+    flashlightPickedUp = true; flashlightOwned = true;
+    scene.remove(flWorld); scene.remove(flWorldGlow); scene.remove(flPillar);
+    initFlashBeam();
+    flashBlueOn = (d.flBlue !== undefined) ? d.flBlue : true;
+    flashRedOn  = (d.flRed  !== undefined) ? d.flRed  : false;
+    addToInventory(flashlightItem);
+  }
+
   // Ring puzzle state
   if (d.rings) {
     ringAngles[0] = d.rings[0] || 0;
@@ -5244,6 +5714,7 @@ function applyLoadedState() {
       ringNotches[_ri].mat.color.set(0x44ff88);
       ringNotches[_ri].mat.opacity = 1.0;
     }
+    revealClueChip(true);
     if (d.tricorder) {
       // Already picked up — just restore item, no mesh needed
       tricorderSpawned = true;
@@ -5529,9 +6000,32 @@ if (!beaconPickedUp) {
 }
 
 // Chip pickup check
+// Clue panel slide-open animation
+if (cluePanelGroup) cluePanelGroup.position.y += (cluePanelTargetY - cluePanelGroup.position.y) * Math.min(1, dt * 2.5);
+
+// Flashlight: world pickup, then beam follows the camera
+if (!flashlightPickedUp && flWorld) {
+  flWorld.rotation.y += dt * 1.2;
+  flWorld.position.y = OUTPOST_FLOOR_Y + 1.2 + Math.sin(now * 0.0015) * 0.12;
+  if (flWorldGlow) flWorldGlow.intensity = 1.0 + Math.sin(now * 0.003) * 0.6;
+  var fldx = camera.position.x - FLASH_PICK.x, fldz = camera.position.z - FLASH_PICK.z;
+  if (fldx * fldx + fldz * fldz < 4.0) {
+    flashlightPickedUp = true; flashlightOwned = true;
+    scene.remove(flWorld); scene.remove(flWorldGlow); scene.remove(flPillar);
+    initFlashBeam();
+    flashBlueOn = true; flashRedOn = false;
+    addToInventory(flashlightItem);
+    var _fSlot = inventory.indexOf(flashlightItem);
+    if (_fSlot >= 0) selectSlot(_fSlot);
+    showPickupNotification('Light acquired — wide beam on (tap the buttons)');
+  }
+}
+if (flashlightOwned) updateFlashBeam();
+
 for (var ci2 = 0; ci2 < chipMeshes.length; ci2++) {
   if (!chipsPickedUp[ci2]) {
     var chipObj = chipMeshes[ci2];
+    if (chipObj.def.hidden && !wallChipRevealed) continue;
     chipObj.mesh.rotation.y += dt * 1.5;
     chipObj.glow.rotation.y -= dt * 0.8;
     chipObj.glowMat.opacity = 0.2 + Math.sin(now * 0.003) * 0.15;
@@ -5768,6 +6262,29 @@ if (scannerActive && heldDeviceRenderer && heldDeviceMesh) {
       }
     });
     heldDeviceWrap.style.clipPath = 'inset(' + Math.max(0, Math.floor((1 - _topNDC) * 350) - 12) + 'px 0 0 0)';
+  }
+}
+
+// Held flashlight device (controls screen with two notched sliders)
+if (flashlightDeviceActive && heldFlashRenderer && heldFlashMesh) {
+  if (heldFlashAim) { heldFlashAim.rotation.x = flashRotX; heldFlashAim.rotation.y = flashRotY; }
+  if (heldFlashBlueBtn) heldFlashBlueBtn.material.emissiveIntensity = flashBlueOn ? 0.95 : 0.0;
+  if (heldFlashRedBtn) heldFlashRedBtn.material.emissiveIntensity = flashRedOn ? 0.95 : 0.0;
+  if (heldFlashLens) heldFlashLens.material.emissiveIntensity = (flashBlueOn || flashRedOn) ? (0.7 + Math.sin(now * 0.004) * 0.15) : 0.35;
+  heldFlashMesh.position.y = -0.10 + Math.sin(now * 0.0009) * 0.005;
+  heldFlashRenderer.render(heldFlashScene, heldFlashCamera);
+  if (heldFlashWrap) {
+    var _fTop = -1.0; heldFlashMesh.updateMatrixWorld(true);
+    heldFlashMesh.traverse(function (_o) {
+      if (!_o.isMesh || !_o.geometry || _o.visible === false) return;
+      var _g = _o.geometry; if (!_g.boundingBox) _g.computeBoundingBox(); var _bb = _g.boundingBox;
+      for (var _c = 0; _c < 8; _c++) {
+        heldFlashVTemp.set((_c & 1) ? _bb.max.x : _bb.min.x, (_c & 2) ? _bb.max.y : _bb.min.y, (_c & 4) ? _bb.max.z : _bb.min.z);
+        _o.localToWorld(heldFlashVTemp); heldFlashVTemp.project(heldFlashCamera);
+        if (heldFlashVTemp.z < 1.0) _fTop = Math.max(_fTop, heldFlashVTemp.y);
+      }
+    });
+    heldFlashWrap.style.clipPath = 'inset(' + Math.max(0, Math.floor((1 - _fTop) * 230) - 12) + 'px 0 0 0)';
   }
 }
 

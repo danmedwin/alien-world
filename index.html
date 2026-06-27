@@ -4,6 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Family Dinner Planner</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#2f7d4f" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Dinners" />
 <style>
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
@@ -80,6 +87,10 @@ details.prefs[open]>summary{ margin-bottom:4px;}
 .ic-link{ display:inline-block; background:#eef6f0; border:1px solid #cfe6d8; color:#1f6b3f; border-radius:999px; padding:6px 12px; font-size:.88rem; text-decoration:none; font-weight:600;}
 .ic-link:hover{ background:#e2efe7;}
 .day-select{ font-size:.85rem; padding:6px 8px; border:1px solid #ccd4cd; border-radius:8px; background:#fff; color:#28352e;}
+.cooknotes{ margin-top:12px; border-top:1px dashed #e0e5e0; padding-top:10px;}
+.cooknote-input{ font-size:.9rem; padding:7px 9px; border:1px solid #ccd4cd; border-radius:8px;}
+.note-row{ font-size:.86rem; padding:5px 0; border-bottom:1px solid #f3f5f3;}
+.upd-badge{ font-size:.72rem; font-weight:600; background:#fef0d8; color:#8a5a12; border-radius:999px; padding:2px 8px; margin-left:6px;}
 </style>
 </head>
 <body>
@@ -198,6 +209,24 @@ details.prefs[open]>summary{ margin-bottom:4px;}
   </div>
 </div>
 
+<!-- Recipe editor modal -->
+<div class="modal-bg" id="recipeModal">
+  <div class="modal">
+    <h2>Update recipe</h2>
+    <p class="muted" id="recipeNoteHint" style="font-size:.85rem;margin:0 0 10px;"></p>
+    <div id="recipeAiRow" style="display:none;margin-bottom:10px;">
+      <button class="btn secondary small" id="btnAiRevise">✨ Revise from latest note (AI)</button>
+    </div>
+    <div class="field"><label>Recipe / instructions</label>
+      <textarea id="recipeText" rows="10" style="padding:8px 9px;border:1px solid #ccd4cd;border-radius:8px;font-family:inherit;font-size:.9rem;"></textarea>
+    </div>
+    <div class="row" style="justify-content:flex-end;">
+      <button class="btn secondary" data-close="recipeModal">Cancel</button>
+      <button class="btn" id="btnSaveRecipe">Save (keeps old version)</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -222,13 +251,17 @@ const FAMILY_EMAIL = "dinners@medw.in";
 const INSTACART_WORKER_URL = "";
 // Your Instacart store slug (used for the no-key tap-through links).
 const INSTACART_STORE_SLUG = "publix";
+// OPTIONAL: AI recipe-revise backend (Cloudflare Worker). Holds your Anthropic key as a
+// secret — never put the key here or in GitHub. Blank = manual recipe editing only.
+// See RECIPE_AI_SETUP.md.
+const RECIPE_AI_WORKER_URL = "";
 /* ============================================================ */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
          onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, getDocs, getDoc,
-         updateDoc, addDoc, deleteDoc, deleteField, writeBatch }
+         updateDoc, addDoc, deleteDoc, deleteField, writeBatch, arrayUnion }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const NOT_CONFIGURED = firebaseConfig.apiKey.startsWith("REPLACE");
@@ -345,6 +378,45 @@ async function markMade(mealId){
   const ref=doc(db,'meals',mealId);
   await updateDoc(ref,{ made: !m.made, lastMade: !m.made ? new Date().toISOString() : (m.lastMade||null) });
 }
+async function addCookNote(mealId){
+  const inp=document.querySelector('[data-noteinput="'+mealId+'"]'); if(!inp) return;
+  const text=inp.value.trim(); if(!text){ return; }
+  const by=meValid()?myName:'Someone';
+  await updateDoc(doc(db,'meals',mealId), { cookNotes: arrayUnion({ text, date:new Date().toISOString(), by }) });
+  inp.value=''; toast('Note added.');
+}
+let recipeEditId=null;
+function openRecipeEditor(mealId){
+  const m=meals.find(x=>x.id===mealId); if(!m) return; recipeEditId=mealId;
+  $('recipeText').value=m.recipe||'';
+  const notes=m.cookNotes||[]; const latest=notes.length?notes[notes.length-1]:null;
+  $('recipeNoteHint').textContent= latest ? ('Latest note: “'+latest.text+'”') : 'No cook notes yet — you can still edit the recipe by hand.';
+  $('recipeAiRow').style.display = (RECIPE_AI_WORKER_URL && latest) ? '' : 'none';
+  $('recipeModal').classList.add('show');
+}
+async function aiReviseRecipe(){
+  const m=meals.find(x=>x.id===recipeEditId); if(!m) return;
+  const notes=m.cookNotes||[]; const latest=notes.length?notes[notes.length-1].text:'';
+  if(!latest){ toast('No note to revise from.'); return; }
+  const btn=$('btnAiRevise'); btn.disabled=true; btn.textContent='Revising…';
+  try{
+    const r=await fetch(RECIPE_AI_WORKER_URL,{ method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ dish:m.name, recipe:$('recipeText').value, note:latest }) });
+    if(!r.ok) throw new Error('ai '+r.status);
+    const d=await r.json(); if(!d.recipe) throw new Error('empty');
+    $('recipeText').value=d.recipe; toast('Revised — review, then Save.');
+  }catch(e){ toast('AI unavailable — edit manually.'); }
+  btn.disabled=false; btn.textContent='✨ Revise from latest note (AI)';
+}
+async function saveRecipeFromModal(){
+  const m=meals.find(x=>x.id===recipeEditId); if(!m) return;
+  const newText=$('recipeText').value.trim();
+  const by=meValid()?myName:'Someone';
+  const hist=(m.recipeHistory||[]).slice();
+  if((m.recipe||'').trim() && (m.recipe||'')!==newText){ hist.unshift({ text:m.recipe, date:new Date().toISOString(), by }); }
+  await updateDoc(doc(db,'meals',m.id), { recipe:newText, recipeHistory:hist, recipeUpdatedAt:new Date().toISOString(), recipeUpdatedBy:by });
+  closeModal('recipeModal'); toast('Recipe updated.');
+}
 async function approvePlan(){
   if(!plan.length) return;
   await addDoc(collection(db,'history'), { date:new Date().toISOString(), mealIds: plan.slice() });
@@ -441,7 +513,7 @@ function renderCooked(){
     <button class="btn ghost small" data-made="${m.id}">↩︎ Unmark</button></div>
     ${tagsHtml(m)}${recipeHtml(m)}
     <div class="ratings"><div class="rate-row"><strong style="font-size:.85rem;">Rate after eating (1–5★)</strong>${summaryLine(m)}</div>
-    ${orderedRaters().map(r=>`<div class="rate-row"><span class="rate-name">${raterLabel(r)}</span>${starsInput(m,r)}</div>`).join('')}</div></div>`).join('');
+    ${orderedRaters().map(r=>`<div class="rate-row"><span class="rate-name">${raterLabel(r)}</span>${starsInput(m,r)}</div>`).join('')}</div>${cookNotesHtml(m)}</div>`).join('');
 }
 function renderRatings(){
   const area=$('ratingsArea');
@@ -483,7 +555,32 @@ function setWho(enc){ myName=decodeURIComponent(enc); localStorage.setItem('fdp_
 function maybePromptWho(){ if(whoPrompted) return; if(config.raters.length && !meValid()){ whoPrompted=true; openWho(); } }
 /* ---- day assignment + calendar (.ics) ---- */
 function pad(n){ return String(n).padStart(2,'0'); }
-function recipeHtml(m){ return m.recipe?`<details class="ingredients"><summary>Recipe</summary><div style="white-space:pre-wrap;margin-top:6px;">${escapeHtml(m.recipe)}</div></details>`:''; }
+function recipeHtml(m){
+  const hist=m.recipeHistory||[];
+  if(!m.recipe && !hist.length) return '';
+  const badge=hist.length?`<span class="upd-badge">✏️ updated</span>`:'';
+  let h=`<details class="ingredients"><summary>Recipe${badge}</summary><div style="white-space:pre-wrap;margin-top:6px;">${escapeHtml(m.recipe||'')}</div>`;
+  if(hist.length){
+    h+=`<details class="prefs" style="margin-top:8px;"><summary>Earlier versions (${hist.length})</summary>`+
+      hist.map((v,i)=>`<div class="card" style="margin-top:6px;"><div class="muted" style="font-size:.74rem;">${i===hist.length-1?'Original':'Earlier'}${v.date?' · '+escapeHtml(String(v.date).slice(0,10)):''}${v.by?' · '+escapeHtml(v.by):''}</div><div style="white-space:pre-wrap;">${escapeHtml(v.text||'')}</div></div>`).join('')+
+      `</details>`;
+  }
+  return h+`</details>`;
+}
+function cookNotesHtml(m){
+  const notes=m.cookNotes||[];
+  const log=notes.length
+    ? notes.slice().reverse().map(n=>`<div class="note-row">${escapeHtml(n.text)} <span class="muted" style="font-size:.74rem;">— ${n.by?escapeHtml(n.by):'someone'}${n.date?', '+escapeHtml(String(n.date).slice(0,10)):''}</span></div>`).join('')
+    : '<div class="empty-hint" style="padding:6px 0;">No notes yet. Add prep notes after cooking.</div>';
+  return `<div class="cooknotes">
+    <div class="rate-row"><strong style="font-size:.85rem;">Cook notes</strong>
+      <button class="btn ghost small" data-editrecipe="${m.id}">✏️ Update recipe</button></div>
+    ${log}
+    <div class="row" style="margin-top:8px;gap:6px;flex-wrap:nowrap;">
+      <input type="text" class="cooknote-input flex-grow" data-noteinput="${m.id}" placeholder="e.g. needed 10 more min; less salt" style="flex:1;">
+      <button class="btn small" data-addnote="${m.id}">Add</button>
+    </div></div>`;
+}
 function dayOptions(sel){
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const today=new Date(); today.setHours(0,0,0,0);
@@ -623,6 +720,8 @@ document.addEventListener('click', e=>{
   if(t.dataset.tab) setTab(t.dataset.tab);
   if(t.dataset.rsort){ ratingsSort=t.dataset.rsort; renderRatings(); }
   if(t.dataset.who) setWho(t.dataset.who);
+  if(t.dataset.addnote) addCookNote(t.dataset.addnote);
+  if(t.dataset.editrecipe) openRecipeEditor(t.dataset.editrecipe);
   if(t.dataset.rdel!==undefined && t.dataset.rdel!==''){ raterDraft.splice(+t.dataset.rdel,1); renderRatersEdit(); }
   if(t.id==='btnInstacart') sendToInstacart();
   if(t.id==='btnCopy') copyList();
@@ -649,6 +748,8 @@ $('btnSaveMeal').onclick=saveMeal;
 $('btnAddRater').onclick=()=>{ raterDraft.push("New person"); renderRatersEdit(); };
 $('btnSaveSettings').onclick=saveSettings;
 $('btnResetRatings').onclick=resetRatings;
+$('btnSaveRecipe').onclick=saveRecipeFromModal;
+$('btnAiRevise').onclick=aiReviseRecipe;
 $('btnSignout').onclick=()=>{ if(auth) signOut(auth); };
 [...document.querySelectorAll('.modal-bg')].forEach(bg=>bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('show'); }));
 
@@ -694,6 +795,7 @@ function startListeners(){
 }
 
 /* ---------------- Boot ---------------- */
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
 if(NOT_CONFIGURED){
   $('authOverlay').style.display='none'; $('appWrap').style.display='';
   $('appWrap').insertAdjacentHTML('afterbegin','<div class="config-warn"><strong>Not configured yet.</strong> Open this file and fill in <code>firebaseConfig</code> and <code>FAMILY_EMAIL</code> at the top of the script (see SETUP.md), then redeploy.</div>');
